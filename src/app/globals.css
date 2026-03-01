@@ -1,23 +1,22 @@
 :root {
-  --background: #0f1115;
+  --background: #031124;
   --foreground: #f8fafc;
-  --panel-bg: rgba(23, 27, 35, 0.7);
+  --panel-bg: rgba(9, 28, 55, 0.7);
   --panel-border: rgba(255, 255, 255, 0.08);
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
+  --primary: #f59e0b;
+  --primary-hover: #fbbf24;
   --danger: #ef4444;
   --danger-hover: #dc2626;
   --success: #10b981;
-  --warning: #f59e0b;
-  --glow: rgba(99, 102, 241, 0.2);
+  --warning: #fde047;
+  --glow: rgba(245, 158, 11, 0.2);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   background-image:
-    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+    radial-gradient(circle at 50% 50%, rgba(18, 63, 105, 0.6) 0%, transparent 70%);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   margin: 0;
   padding: 0;
@@ -81,27 +80,29 @@ body {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(to top right, #6366f1, #a855f7);
+  background: linear-gradient(to top right, var(--warning), var(--primary));
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.39);
+  box-shadow: 0 4px 14px 0 var(--glow);
 }
 
 .logo-icon svg {
   width: 24px;
   height: 24px;
-  color: white;
+  color: #111827;
 }
 
 .title {
-  font-size: 1.5rem;
-  font-weight: bold;
-  background: linear-gradient(to right, white, #9ca3af);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: white;
   margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.title-highlight {
+  color: var(--warning);
 }
 
 .button-group {
@@ -114,10 +115,10 @@ body {
   flex: 1;
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), #8b5cf6);
-  color: white;
+  background: var(--primary);
+  color: #111827;
   border: none;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
