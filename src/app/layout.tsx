@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DevOps Lab",
+  title: "Deploy(it) Portal",
   description: "A Cloud Run powered ephemeral web-terminal laboratory.",
+  icons: {
+    icon: "/devops.png",
+  },
 };
 
 export default function RootLayout({

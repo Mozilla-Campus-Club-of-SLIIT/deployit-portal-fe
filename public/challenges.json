@@ -1,0 +1,18 @@
+{
+    "version": "1.0.0",
+    "challenges": [
+        {
+            "id": "find-the-flag",
+            "title": "Find the Secret Flag",
+            "description": "A secret flag string has been injected into /root/flag.txt inside the container. Launch the lab, read the file, and submit the flag below.",
+            "difficulty": "Easy",
+            "tags": [
+                "Linux",
+                "CLI",
+                "Basics"
+            ],
+            "image": "ubuntu",
+            "locked": false
+        }
+    ]
+}
