@@ -12,8 +12,8 @@ This is the frontend UI for the DevOps Lab platform, powered entirely by React a
 To start the Next.js development server:
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 The web UI will be accessible at:
