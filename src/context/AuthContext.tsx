@@ -4,6 +4,14 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 
 const API_URL = "http://localhost:8080";
 
+// Token helpers — stored separately from user data
+const TOKEN_KEY = "devops_token";
+export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
+export const authHeaders = (): Record<string, string> => {
+    const token = getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 interface AuthUser {
     uid: string;
     email: string;
@@ -23,8 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
  * Uploads an image to Firebase Storage via the Go backend.
- * The backend uses the GCP service account to upload the image and
- * writes the photoUrl into the Firestore user document — no CORS issues.
+ * Sends the JWT token so the authenticated upload-avatar route accepts it.
  */
 async function uploadAvatarViaBackend(userId: string, file: File): Promise<string> {
     const formData = new FormData();
@@ -35,6 +42,7 @@ async function uploadAvatarViaBackend(userId: string, file: File): Promise<strin
 
     const response = await fetch(`${API_URL}/api/upload-avatar`, {
         method: "POST",
+        headers: authHeaders(), // JWT required by RequireAuth middleware
         body: formData,
     });
 
@@ -76,11 +84,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const data = await response.json();
+
+        // Store JWT for subsequent authenticated requests
+        if (data.token) {
+            localStorage.setItem(TOKEN_KEY, data.token);
+        }
+
         const mappedUser: AuthUser = {
             uid: data.user.id,
             email: data.user.email,
             displayName: data.user.displayName,
-            // photoUrl is now returned directly from the backend via the User struct
             photoUrl: data.user.photoUrl || undefined,
         };
         setUser(mappedUser);
@@ -88,7 +101,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const signup = async (email: string, pass: string, displayName: string, photoFile?: File | null) => {
-        // 1. Register user with the Go backend
         const response = await fetch(`${API_URL}/api/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -105,9 +117,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const data = await response.json();
         const userId: string = data.user.id;
-        let photoUrl: string | undefined;
 
-        // 2. Upload avatar via backend — backend also writes photoUrl to Firestore
+        // Store JWT from registration response
+        if (data.token) {
+            localStorage.setItem(TOKEN_KEY, data.token);
+        }
+
+        let photoUrl: string | undefined;
         if (photoFile) {
             try {
                 photoUrl = await uploadAvatarViaBackend(userId, photoFile);
@@ -130,6 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = async () => {
         setUser(null);
         localStorage.removeItem("devops_user");
+        localStorage.removeItem(TOKEN_KEY);
     };
 
     return (

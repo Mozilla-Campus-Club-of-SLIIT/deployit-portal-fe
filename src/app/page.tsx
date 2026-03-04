@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, authHeaders } from "@/context/AuthContext";
 import Link from "next/link";
 
 const API_URL = "http://localhost:8080";
@@ -20,6 +20,17 @@ export default function DevOpsLabClient() {
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const MAX_SIZE_MB = 1;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setAuthError(`Profile image must be smaller than ${MAX_SIZE_MB}MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB.`);
+      e.target.value = ""; // Reset input
+      setProfileImageFile(null);
+      setProfileImagePreview(null);
+      return;
+    }
+
+    setAuthError("");
     setProfileImageFile(file);
     setProfileImagePreview(URL.createObjectURL(file));
   };
@@ -118,7 +129,9 @@ export default function DevOpsLabClient() {
   const fetchAttempts = async () => {
     if (!user) return;
     try {
-      const response = await fetch(`${API_URL}/api/attempts?userId=${user.uid}`);
+      const response = await fetch(`${API_URL}/api/attempts?userId=${user.uid}`, {
+        headers: authHeaders(),
+      });
       if (response.ok) {
         const data = await response.json();
         setAttempts(data || []);
@@ -164,7 +177,7 @@ export default function DevOpsLabClient() {
     try {
       const response = await fetch(`${API_URL}/start-lab`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ labType: activeLabTypeId, userId: user?.uid, userEmail: user?.email, userDisplayName: user?.displayName }),
       });
 
@@ -213,7 +226,7 @@ export default function DevOpsLabClient() {
     try {
       const response = await fetch(`${API_URL}/stop-lab`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ sessionID: sessionId, skipEvaluation }),
       });
 
