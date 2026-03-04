@@ -13,6 +13,16 @@ export default function DevOpsLabClient() {
   const [displayName, setDisplayName] = useState("");
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [authError, setAuthError] = useState("");
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const profileImageInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfileImageFile(file);
+    setProfileImagePreview(URL.createObjectURL(file));
+  };
   const [labType, setLabType] = useState("");
   const [challenges, setChallenges] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
@@ -127,7 +137,7 @@ export default function DevOpsLabClient() {
       if (isLoginMode) {
         await login(email, password);
       } else {
-        await signup(email, password, displayName);
+        await signup(email, password, displayName, profileImageFile);
       }
     } catch (err: any) {
       setAuthError(err.message || "Authentication failed");
@@ -298,25 +308,71 @@ export default function DevOpsLabClient() {
                 </p>
 
                 {authError && (
-                  <div className="status-badge status-error" style={{ marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-                    {authError}
+                  <div className="status-badge status-error" style={{ marginBottom: '1.5rem', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span>{authError}</span>
+                    {authError.toLowerCase().includes("already exists") && (
+                      <button
+                        type="button"
+                        onClick={() => { setIsLoginMode(true); setAuthError(""); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, padding: 0, textAlign: 'left' }}
+                      >
+                        → Log in instead
+                      </button>
+                    )}
                   </div>
                 )}
 
                 <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {!isLoginMode && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="Your Name"
-                        className="challenge-input"
-                        style={{ width: '100%' }}
-                      />
-                    </div>
+                    <>
+                      {/* Profile Image Upload */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                        <div
+                          onClick={() => profileImageInputRef.current?.click()}
+                          style={{
+                            width: 80, height: 80, borderRadius: '50%',
+                            background: profileImagePreview ? 'transparent' : 'rgba(99,102,241,0.15)',
+                            border: '2px dashed rgba(99,102,241,0.4)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', overflow: 'hidden', position: 'relative',
+                            transition: 'border-color 0.2s',
+                          }}
+                        >
+                          {profileImagePreview ? (
+                            <img src={profileImagePreview} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(99,102,241,0.7)" strokeWidth="1.5">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          )}
+                        </div>
+                        <input
+                          ref={profileImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={handleProfileImageChange}
+                        />
+                        <span style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                          {profileImagePreview ? 'Click to change photo' : 'Click to add profile photo (optional)'}
+                        </span>
+                      </div>
+
+                      {/* Full Name */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Your Name"
+                          className="challenge-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                    </>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Email Address</label>
@@ -381,9 +437,27 @@ export default function DevOpsLabClient() {
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Score</span>
                 <span style={{ fontSize: '1.1rem', fontWeight: 900, color: 'white' }}>{totalScore}</span>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>{user.displayName}</div>
-                <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{user.email}</div>
+              {/* Profile Avatar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%',
+                  overflow: 'hidden', flexShrink: 0,
+                  border: '2px solid rgba(99,102,241,0.4)',
+                  background: 'rgba(99,102,241,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {user.photoUrl ? (
+                    <img src={user.photoUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ color: '#818cf8', fontWeight: 900, fontSize: '1rem' }}>
+                      {user.displayName?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
+                  )}
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>{user.displayName}</div>
+                  <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{user.email}</div>
+                </div>
               </div>
               <button onClick={logout} className="button-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Logout</button>
             </div>

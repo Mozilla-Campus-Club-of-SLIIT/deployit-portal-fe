@@ -8,17 +8,48 @@ interface AuthUser {
     uid: string;
     email: string;
     displayName: string;
+    photoUrl?: string;
 }
 
 interface AuthContextType {
     user: AuthUser | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<void>;
-    signup: (email: string, pass: string, displayName: string) => Promise<void>;
+    signup: (email: string, pass: string, displayName: string, photoFile?: File | null) => Promise<void>;
     logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/**
+ * Uploads an image to Firebase Storage via the Go backend.
+ * The backend uses the GCP service account to upload the image and
+ * writes the photoUrl into the Firestore user document — no CORS issues.
+ */
+async function uploadAvatarViaBackend(userId: string, file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("userId", userId);
+    formData.append("avatar", file);
+
+    console.log(`[uploadAvatar] POSTing to ${API_URL}/api/upload-avatar — userId=${userId}, file=${file.name} (${file.size} bytes)`);
+
+    const response = await fetch(`${API_URL}/api/upload-avatar`, {
+        method: "POST",
+        body: formData,
+    });
+
+    console.log(`[uploadAvatar] Response status: ${response.status}`);
+
+    if (!response.ok) {
+        const errText = (await response.text()).trim();
+        console.error(`[uploadAvatar] Error: ${errText}`);
+        throw new Error(`Avatar upload failed: ${errText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[uploadAvatar] Success! photoUrl=${data.photoUrl}`);
+    return data.photoUrl as string;
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -41,16 +72,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(error || "Invalid credentials");
+            throw new Error(error.trim() || "Invalid credentials");
         }
 
         const data = await response.json();
-        const mappedUser = { uid: data.user.id, email: data.user.email, displayName: data.user.displayName };
+        const mappedUser: AuthUser = {
+            uid: data.user.id,
+            email: data.user.email,
+            displayName: data.user.displayName,
+            // photoUrl is now returned directly from the backend via the User struct
+            photoUrl: data.user.photoUrl || undefined,
+        };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
     };
 
-    const signup = async (email: string, pass: string, displayName: string) => {
+    const signup = async (email: string, pass: string, displayName: string, photoFile?: File | null) => {
+        // 1. Register user with the Go backend
         const response = await fetch(`${API_URL}/api/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -58,12 +96,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || "Registration failed");
+            const rawError = (await response.text()).trim();
+            if (response.status === 409 || rawError.toLowerCase().includes("already exists")) {
+                throw new Error("An account with this email address already exists. Please log in instead.");
+            }
+            throw new Error(rawError || "Registration failed");
         }
 
         const data = await response.json();
-        const mappedUser = { uid: data.user.id, email: data.user.email, displayName: data.user.displayName };
+        const userId: string = data.user.id;
+        let photoUrl: string | undefined;
+
+        // 2. Upload avatar via backend — backend also writes photoUrl to Firestore
+        if (photoFile) {
+            try {
+                photoUrl = await uploadAvatarViaBackend(userId, photoFile);
+            } catch (e) {
+                console.warn("[AuthContext] Photo upload failed, continuing without photo:", e);
+                photoUrl = undefined;
+            }
+        }
+
+        const mappedUser: AuthUser = {
+            uid: userId,
+            email: data.user.email,
+            displayName: data.user.displayName,
+            photoUrl,
+        };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
     };
