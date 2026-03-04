@@ -34,7 +34,7 @@ export default function DevOpsLabClient() {
     setProfileImageFile(file);
     setProfileImagePreview(URL.createObjectURL(file));
   };
-  const [labType, setLabType] = useState("");
+  const [labType, setLabType] = useState<string>("");
   const [challenges, setChallenges] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
   const [isChallengesLoading, setIsChallengesLoading] = useState(true);
@@ -59,15 +59,33 @@ export default function DevOpsLabClient() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
 
+  // Reset to page 1 whenever filter changes
+  const handleCategoryChange = (cat: string) => {
+    setSelectedCategory(cat);
+    setCurrentPage(1);
+  };
+
   const categories = React.useMemo(() => {
     return ["All", ...Array.from(new Set(challenges.flatMap(c => c.tags || [])))];
   }, [challenges]);
 
+  const ITEMS_PER_PAGE = 6;
+  const [currentPage, setCurrentPage] = useState(1);
+
   const filteredChallenges = React.useMemo(() => {
-    return selectedCategory === "All"
+    const all = selectedCategory === "All"
       ? challenges
       : challenges.filter(c => (c.tags || []).includes(selectedCategory));
+    // Filter out locked challenges from the student view
+    return all.filter(c => !c.locked);
   }, [challenges, selectedCategory]);
+
+  const totalPages = Math.ceil(filteredChallenges.length / ITEMS_PER_PAGE);
+
+  const pagedChallenges = React.useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredChallenges.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredChallenges, currentPage, ITEMS_PER_PAGE]);
 
   const quotes = [
     "“If it hurts, do it more frequently, and bring the pain forward.” — Jez Humble",
@@ -81,6 +99,30 @@ export default function DevOpsLabClient() {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const quoteTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ── Restore active session from sessionStorage on page refresh ──────────────
+  useEffect(() => {
+    const savedSession = sessionStorage.getItem("active_lab_session");
+    if (savedSession) {
+      try {
+        const { sessionId: sid, labUrl: url, labType: lt, timer: t } = JSON.parse(savedSession);
+        if (sid && url) {
+          setSessionId(sid);
+          setLabUrl(url);
+          if (lt) setLabType(lt);
+          if (t && t > 0) setTimer(t);
+          setStatus({ type: "success", message: "Session restored after refresh." });
+        }
+      } catch { /* ignore parse errors */ }
+    }
+  }, []);
+
+  // ── Persist session state to sessionStorage whenever it changes ─────────────
+  useEffect(() => {
+    if (sessionId && labUrl) {
+      sessionStorage.setItem("active_lab_session", JSON.stringify({ sessionId, labUrl, labType, timer }));
+    }
+  }, [sessionId, labUrl, labType, timer]);
 
   useEffect(() => {
     return () => {
@@ -260,6 +302,7 @@ export default function DevOpsLabClient() {
     setLabUrl(null);
     setTimer(0);
     if (timerRef.current) clearTimeout(timerRef.current);
+    sessionStorage.removeItem("active_lab_session"); // clear persisted session
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -534,7 +577,7 @@ export default function DevOpsLabClient() {
                       {categories.map(cat => (
                         <button
                           key={cat}
-                          onClick={() => setSelectedCategory(cat)}
+                          onClick={() => handleCategoryChange(cat)}
                           style={{
                             padding: '0.4rem 1rem',
                             borderRadius: '20px',
@@ -554,6 +597,8 @@ export default function DevOpsLabClient() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Challenge cards grid */}
                   <div className="challenge-cards" style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))',
@@ -564,7 +609,7 @@ export default function DevOpsLabClient() {
                     ) : filteredChallenges.length === 0 ? (
                       <p style={{ color: '#94a3b8' }}>No challenges found for this category.</p>
                     ) : (
-                      filteredChallenges.map((c) => (
+                      pagedChallenges.map((c) => (
                         <div
                           key={c.id}
                           className="glass-panel"
@@ -602,6 +647,103 @@ export default function DevOpsLabClient() {
                       ))
                     )}
                   </div>
+
+                  {/* ── Pagination bar ── */}
+                  {totalPages > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      marginTop: '2rem',
+                      flexWrap: 'wrap',
+                    }}>
+                      {/* Prev */}
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                          padding: '0.45rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          background: 'transparent',
+                          color: currentPage === 1 ? '#475569' : '#94a3b8',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        ← Prev
+                      </button>
+
+                      {/* Page numbers */}
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(page => {
+                          // Show first, last, current ±1, and ellipsis hints
+                          if (totalPages <= 7) return true;
+                          return page === 1 || page === totalPages ||
+                            Math.abs(page - currentPage) <= 1;
+                        })
+                        .reduce<(number | '...')[]>((acc, page, idx, arr) => {
+                          if (idx > 0 && typeof arr[idx - 1] === 'number' && (arr[idx - 1] as number) + 1 < page) {
+                            acc.push('...');
+                          }
+                          acc.push(page);
+                          return acc;
+                        }, [])
+                        .map((item, idx) =>
+                          item === '...' ? (
+                            <span key={`ellipsis-${idx}`} style={{ color: '#475569', padding: '0 0.25rem', fontSize: '0.85rem' }}>…</span>
+                          ) : (
+                            <button
+                              key={item}
+                              onClick={() => setCurrentPage(item as number)}
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '8px',
+                                border: '1px solid',
+                                borderColor: currentPage === item ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                background: currentPage === item ? 'rgba(245,158,11,0.15)' : 'transparent',
+                                color: currentPage === item ? 'var(--primary)' : '#94a3b8',
+                                fontSize: '0.8rem',
+                                fontWeight: currentPage === item ? 800 : 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              {item}
+                            </button>
+                          )
+                        )
+                      }
+
+                      {/* Next */}
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                          padding: '0.45rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          background: 'transparent',
+                          color: currentPage === totalPages ? '#475569' : '#94a3b8',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        Next →
+                      </button>
+
+                      {/* Count summary */}
+                      <span style={{ fontSize: '0.75rem', color: '#475569', marginLeft: '0.5rem' }}>
+                        {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredChallenges.length)} of {filteredChallenges.length}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
 

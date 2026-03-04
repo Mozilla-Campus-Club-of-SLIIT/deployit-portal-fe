@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, authHeaders } from "@/context/AuthContext";
 import Link from "next/link";
 
 const API_URL = "http://localhost:8080";
@@ -18,7 +18,9 @@ export default function HistoryPage() {
             setIsLoading(true);
             try {
                 const [attemptsRes, challengesRes] = await Promise.all([
-                    fetch(`${API_URL}/api/attempts?userId=${user.uid}`),
+                    fetch(`${API_URL}/api/attempts?userId=${user.uid}`, {
+                        headers: authHeaders()
+                    }),
                     fetch(`${API_URL}/api/challenges`)
                 ]);
 
@@ -137,7 +139,9 @@ export default function HistoryPage() {
                                                                 fontSize: '0.75rem',
                                                                 letterSpacing: '0.05em'
                                                             }}>
-                                                                {attempt.result}
+                                                                {attempt.result === 'SUCCESS' ? 'Passed' :
+                                                                    attempt.result === 'FAILURE' ? 'Failed' :
+                                                                        attempt.result}
                                                             </span>
                                                         </td>
                                                         <td style={{ padding: '1.25rem', color: '#64748b' }}>

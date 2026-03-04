@@ -17,6 +17,8 @@ interface AuthUser {
     email: string;
     displayName: string;
     photoUrl?: string;
+    totalScore?: number;
+    role?: string;
 }
 
 interface AuthContextType {
@@ -95,6 +97,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: data.user.email,
             displayName: data.user.displayName,
             photoUrl: data.user.photoUrl || undefined,
+            totalScore: data.user.totalScore || 0,
+            role: data.user.role,
         };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
@@ -138,6 +142,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: data.user.email,
             displayName: data.user.displayName,
             photoUrl,
+            totalScore: data.user.totalScore || 0,
+            role: data.user.role,
         };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
