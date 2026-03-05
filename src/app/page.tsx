@@ -7,11 +7,14 @@ import Link from "next/link";
 const API_URL = "http://localhost:8080";
 
 export default function DevOpsLabClient() {
-  const { user, login, signup, logout } = useAuth();
+  const { user, login, signup, logout, resetPassword, sendVerificationEmail } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [authError, setAuthError] = useState("");
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
@@ -212,11 +215,47 @@ export default function DevOpsLabClient() {
       } else {
         await signup(email, password, displayName, profileImageFile);
       }
+
+      // Mark first login verification as needed if logging in for the first time
+      if (!localStorage.getItem(`devops_verified_${email}`)) {
+        localStorage.setItem(`devops_first_login_${email}`, "true");
+      }
     } catch (err: any) {
       setAuthError(err.message || "Authentication failed");
     } finally {
       setIsLoading(false);
       setIsAuthenticating(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setAuthError("Please enter your email to reset password.");
+      return;
+    }
+    setIsLoading(true);
+    setAuthError("");
+    try {
+      await resetPassword(email);
+      setResetSent(true);
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to send reset email");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendVerification = async () => {
+    try {
+      setVerificationSent(true);
+      if (user?.email) {
+        localStorage.setItem(`devops_verified_${user.email}`, "true");
+        localStorage.removeItem(`devops_first_login_${user.email}`);
+      }
+      await sendVerificationEmail();
+    } catch (e: any) {
+      console.warn("Verification failed", e);
     }
   };
 
@@ -380,10 +419,10 @@ export default function DevOpsLabClient() {
             <div className="portal-content-box" style={{ maxWidth: '400px', margin: '0 auto' }}>
               <div className="glass-panel" style={{ padding: '2.5rem' }}>
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'white', marginBottom: '0.5rem', textAlign: 'center' }}>
-                  {isLoginMode ? "Sign In" : "Create Account"}
+                  {isForgotPasswordMode ? "Reset Password" : isLoginMode ? "Sign In" : "Create Account"}
                 </h1>
                 <p style={{ color: '#94a3b8', marginBottom: '2rem', textAlign: 'center', fontSize: '0.9rem' }}>
-                  to access your DevOps Lab
+                  {isForgotPasswordMode ? "Enter your email to receive a reset link" : "to access your DevOps Lab"}
                 </p>
 
                 {authError && (
@@ -401,100 +440,143 @@ export default function DevOpsLabClient() {
                   </div>
                 )}
 
-                <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {!isLoginMode && (
-                    <>
-                      {/* Profile Image Upload */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                        <div
-                          onClick={() => profileImageInputRef.current?.click()}
-                          style={{
-                            width: 80, height: 80, borderRadius: '50%',
-                            background: profileImagePreview ? 'transparent' : 'rgba(99,102,241,0.15)',
-                            border: '2px dashed rgba(99,102,241,0.4)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', overflow: 'hidden', position: 'relative',
-                            transition: 'border-color 0.2s',
-                          }}
-                        >
-                          {profileImagePreview ? (
-                            <img src={profileImagePreview} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(99,102,241,0.7)" strokeWidth="1.5">
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                              <circle cx="12" cy="7" r="4" />
-                            </svg>
-                          )}
-                        </div>
-                        <input
-                          ref={profileImageInputRef}
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={handleProfileImageChange}
-                        />
-                        <span style={{ color: '#64748b', fontSize: '0.72rem' }}>
-                          {profileImagePreview ? 'Click to change photo' : 'Click to add profile photo (optional)'}
-                        </span>
-                      </div>
+                {resetSent && isForgotPasswordMode ? (
+                  <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📧</div>
+                    <div style={{ color: '#10b981', fontWeight: 700, marginBottom: '1rem' }}>Reset link sent!</div>
+                    <p style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>Please check your inbox (and spam folder) for further instructions.</p>
+                    <button onClick={() => { setIsForgotPasswordMode(false); setResetSent(false); }} className="button-secondary" style={{ marginTop: '1.5rem' }}>Back to Login</button>
+                  </div>
+                ) : isForgotPasswordMode ? (
+                  <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Email Address</label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Your Email"
+                        className="challenge-input"
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    <button type="submit" disabled={isLoading} className="button-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}>
+                      {isLoading ? "Sending..." : "Send Reset Link"}
+                    </button>
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                      <button type="button" onClick={() => setIsForgotPasswordMode(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem' }}>Back to Login</button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {!isLoginMode && (
+                        <>
+                          {/* Profile Image Upload */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                            <div
+                              onClick={() => profileImageInputRef.current?.click()}
+                              style={{
+                                width: 80, height: 80, borderRadius: '50%',
+                                background: profileImagePreview ? 'transparent' : 'rgba(99,102,241,0.15)',
+                                border: '2px dashed rgba(99,102,241,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', overflow: 'hidden', position: 'relative',
+                                transition: 'border-color 0.2s',
+                              }}
+                            >
+                              {profileImagePreview ? (
+                                <img src={profileImagePreview} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(99,102,241,0.7)" strokeWidth="1.5">
+                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                  <circle cx="12" cy="7" r="4" />
+                                </svg>
+                              )}
+                            </div>
+                            <input
+                              ref={profileImageInputRef}
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={handleProfileImageChange}
+                            />
+                            <span style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                              {profileImagePreview ? 'Click to change photo' : 'Click to add profile photo (optional)'}
+                            </span>
+                          </div>
 
-                      {/* Full Name */}
+                          {/* Full Name */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Full Name</label>
+                            <input
+                              type="text"
+                              required
+                              value={displayName}
+                              onChange={(e) => setDisplayName(e.target.value)}
+                              placeholder="Your Name"
+                              className="challenge-input"
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                        </>
+                      )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Full Name</label>
+                        <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Email Address</label>
                         <input
-                          type="text"
+                          type="email"
                           required
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="Your Name"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="Your Email"
                           className="challenge-input"
                           style={{ width: '100%' }}
                         />
                       </div>
-                    </>
-                  )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Your Email"
-                      className="challenge-input"
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Password</label>
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="challenge-input"
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="button-primary"
-                    style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
-                  >
-                    {isLoading ? "Please wait..." : (isLoginMode ? "Login" : "Sign Up")}
-                  </button>
-                </form>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>Password</label>
+                          {isLoginMode && (
+                            <button
+                              type="button"
+                              onClick={() => setIsForgotPasswordMode(true)}
+                              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                            >
+                              Forgot Password?
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="password"
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="challenge-input"
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="button-primary"
+                        style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
+                      >
+                        {isLoading ? "Please wait..." : (isLoginMode ? "Login" : "Sign Up")}
+                      </button>
+                    </form>
 
-                <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-                  <button
-                    onClick={() => { setIsLoginMode(!isLoginMode); setAuthError(""); }}
-                    style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem' }}
-                  >
-                    {isLoginMode ? "Don't have an account? Sign Up" : "Already have an account? Login"}
-                  </button>
-                </div>
+                    <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                      <button
+                        onClick={() => { setIsLoginMode(!isLoginMode); setAuthError(""); setIsForgotPasswordMode(false); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.9rem' }}
+                      >
+                        {isLoginMode ? "Don't have an account? Sign Up" : "Already have an account? Login"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -543,6 +625,16 @@ export default function DevOpsLabClient() {
           </header>
 
           <div className="portal-main">
+            {user?.email && localStorage.getItem(`devops_first_login_${user.email}`) && !localStorage.getItem(`devops_verified_${user.email}`) && (
+              <div style={{ background: 'rgba(245, 158, 11, 0.15)', borderBottom: '1px solid rgba(245, 158, 11, 0.3)', padding: '1rem', textAlign: 'center', color: '#fcd34d' }}>
+                <span style={{ fontWeight: 600, marginRight: '1rem' }}>Welcome! For full platform access, please verify your email address. </span>
+                {verificationSent ? (
+                  <span style={{ color: '#10b981', fontWeight: 700 }}>Verification sent!</span>
+                ) : (
+                  <button onClick={handleSendVerification} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#fcd34d', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Send Verification Link</button>
+                )}
+              </div>
+            )}
             <div className="portal-content-box">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 

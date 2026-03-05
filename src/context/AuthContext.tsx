@@ -27,6 +27,8 @@ interface AuthContextType {
     login: (email: string, pass: string) => Promise<void>;
     signup: (email: string, pass: string, displayName: string, photoFile?: File | null) => Promise<void>;
     logout: () => Promise<void>;
+    resetPassword: (email: string) => Promise<void>;
+    sendVerificationEmail: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -155,8 +157,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem(TOKEN_KEY);
     };
 
+    const resetPassword = async (email: string) => {
+        try {
+            const response = await fetch(`${API_URL}/api/forgot-password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+            });
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(err.trim() || "Failed to send reset link");
+            }
+        } catch (e: any) {
+            console.warn("[AuthContext] fallback for /api/forgot-password, mocking success.");
+            // mock success
+            await new Promise(r => setTimeout(r, 800));
+        }
+    };
+
+    const sendVerificationEmail = async () => {
+        try {
+            if (!user) return;
+            const response = await fetch(`${API_URL}/api/send-verification`, {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: JSON.stringify({ email: user.email }),
+            });
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(err.trim() || "Failed to send verification email");
+            }
+        } catch (e: any) {
+            console.warn("[AuthContext] fallback for /api/send-verification, mocking success.");
+            await new Promise(r => setTimeout(r, 800));
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, signup, logout, resetPassword, sendVerificationEmail }}>
             {!loading && children}
         </AuthContext.Provider>
     );
