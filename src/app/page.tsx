@@ -160,6 +160,24 @@ export default function DevOpsLabClient() {
     return () => clearTimeout(timerRef.current as NodeJS.Timeout);
   }, [timer, sessionId]);
 
+  // Keep-alive script: Since Cloud Run uses request-based billing (CPU throttling), 
+  // background container processes will freeze without active requests. This pings the container
+  // to trick it into staying awake until the user requests an evaluation.
+  useEffect(() => {
+    let keepAliveInterval: NodeJS.Timeout;
+    if (sessionId && labUrl) {
+      keepAliveInterval = setInterval(() => {
+        console.log(`[Keep-Alive] Pinging container at ${labUrl} to prevent instance sleep...`);
+        fetch(labUrl, { mode: 'no-cors' }).catch((err) => {
+          console.warn("[Keep-Alive] Ping failed:", err);
+        });
+      }, 10000);
+    }
+    return () => {
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+    };
+  }, [sessionId, labUrl]);
+
   useEffect(() => {
     if (user) {
       fetchAttempts();
@@ -230,7 +248,7 @@ export default function DevOpsLabClient() {
       const data = await response.json();
       setSessionId(data.sessionID);
       setLabUrl(data.url);
-      setTimer(5 * 60);
+      setTimer(data.timeLimit || 300); // Dynamic timer depending on challenge
       setStatus({ type: "success", message: "Lab successfully started!" });
     } catch (error: any) {
       setStatus({ type: "error", message: `Error: ${error.message}` });
@@ -345,6 +363,11 @@ export default function DevOpsLabClient() {
           <p className="loading-quote">
             {isEvaluating ? "“Quality is not an act, it is a habit.” — Aristotle" : isAuthenticating ? "Please wait while we sign you in..." : quotes[loadingQuoteIndex]}
           </p>
+          {(!isEvaluating && !isAuthenticating) && (
+            <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.05em' }}>
+              (This takes 30 seconds to 1 minute)
+            </div>
+          )}
         </div>
       </div>
 
