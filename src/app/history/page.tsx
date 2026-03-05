@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth, authHeaders } from "@/context/AuthContext";
 import Link from "next/link";
 
-const API_URL = "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function HistoryPage() {
     const { user, logout } = useAuth();

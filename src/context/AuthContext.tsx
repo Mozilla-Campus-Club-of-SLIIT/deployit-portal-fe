@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-const API_URL = "http://localhost:8080";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 // Token helpers — stored separately from user data
 const TOKEN_KEY = "devops_token";
