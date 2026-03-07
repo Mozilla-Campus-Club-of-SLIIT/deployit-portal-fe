@@ -18,6 +18,7 @@ export default function DevOpsLabClient() {
   const [authError, setAuthError] = useState("");
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
   const profileImageInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +56,7 @@ export default function DevOpsLabClient() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [loadingQuoteIndex, setLoadingQuoteIndex] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -248,14 +250,44 @@ export default function DevOpsLabClient() {
 
   const handleSendVerification = async () => {
     try {
-      setVerificationSent(true);
-      if (user?.email) {
-        localStorage.setItem(`devops_verified_${user.email}`, "true");
-        localStorage.removeItem(`devops_first_login_${user.email}`);
-      }
+      setIsSendingVerification(true);
       await sendVerificationEmail();
+      setVerificationSent(true);
+      setAuthError("");
     } catch (e: any) {
       console.warn("Verification failed", e);
+      setAuthError("Failed to send verification code.");
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.trim().length < 6) {
+        setAuthError("Please enter a valid 6-digit verification code.");
+        return;
+    }
+    setAuthError("");
+    setIsSendingVerification(true);
+    try {
+        const res = await fetch(`${API_URL}/api/verify-otp`, {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ email: user?.email, code: otpCode }),
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(err || "Invalid verification code.");
+        }
+        if (user?.email) {
+            localStorage.setItem(`devops_verified_${user.email}`, "true");
+            localStorage.removeItem(`devops_first_login_${user.email}`);
+            window.location.reload();
+        }
+    } catch (e: any) {
+        setAuthError(e.message);
+    } finally {
+        setIsSendingVerification(false);
     }
   };
 
@@ -583,8 +615,8 @@ export default function DevOpsLabClient() {
         </div>
       ) : !sessionId ? (
         <div className={`portal-container ${isLoading ? "blurred" : ""}`}>
-          <header className="portal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+          <header className="portal-header">
+            <div className="portal-header-left">
               <Link href="/">
                 <img src="/deployit-logo.png" alt="Deploy(it) Logo" className="portal-logo" style={{ cursor: 'pointer' }} />
               </Link>
@@ -593,13 +625,13 @@ export default function DevOpsLabClient() {
                 <Link href="/history" style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none' }}>History</Link>
               </nav>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-              <div style={{ background: 'rgba(99, 102, 241, 0.1)', padding: '0.4rem 1rem', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="portal-header-right">
+              <div className="score-badge">
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Score</span>
                 <span style={{ fontSize: '1.1rem', fontWeight: 900, color: 'white' }}>{totalScore}</span>
               </div>
               {/* Profile Avatar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="profile-section">
                 <div style={{
                   width: 38, height: 38, borderRadius: '50%',
                   overflow: 'hidden', flexShrink: 0,
@@ -615,26 +647,74 @@ export default function DevOpsLabClient() {
                     </span>
                   )}
                 </div>
-                <div style={{ textAlign: 'left' }}>
+                <div className="profile-info">
                   <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 600 }}>{user.displayName}</div>
                   <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{user.email}</div>
                 </div>
               </div>
-              <button onClick={logout} className="button-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}>Logout</button>
+              <button onClick={logout} className="button-secondary logout-btn">Logout</button>
             </div>
           </header>
 
           <div className="portal-main">
-            {user?.email && localStorage.getItem(`devops_first_login_${user.email}`) && !localStorage.getItem(`devops_verified_${user.email}`) && (
-              <div style={{ background: 'rgba(245, 158, 11, 0.15)', borderBottom: '1px solid rgba(245, 158, 11, 0.3)', padding: '1rem', textAlign: 'center', color: '#fcd34d' }}>
-                <span style={{ fontWeight: 600, marginRight: '1rem' }}>Welcome! For full platform access, please verify your email address. </span>
-                {verificationSent ? (
-                  <span style={{ color: '#10b981', fontWeight: 700 }}>Verification sent!</span>
-                ) : (
-                  <button onClick={handleSendVerification} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#fcd34d', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>Send Verification Link</button>
-                )}
+            {user?.email && localStorage.getItem(`devops_first_login_${user.email}`) && !localStorage.getItem(`devops_verified_${user.email}`) ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '2rem' }}>
+                <div className="glass-panel" style={{ padding: '3rem 2rem', maxWidth: '500px', width: '100%', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                  <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✉️</div>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', marginBottom: '1rem' }}>Please Verify Your Email</h2>
+                  <p style={{ color: '#cbd5e1', marginBottom: '2rem', lineHeight: 1.6 }}>
+                    Welcome! For full platform access, please verify your email address. You won't be able to access challenges until you do.
+                  </p>
+
+                  {authError && (
+                    <div className="status-badge status-error" style={{ marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                      {authError}
+                    </div>
+                  )}
+
+                  {verificationSent ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                      <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1rem', borderRadius: '8px', fontWeight: 700, marginBottom: '0.5rem' }}>
+                        Verification code sent! Check your inbox.
+                      </div>
+                      <input 
+                        type="text" 
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        placeholder="Enter 6-digit code" 
+                        className="challenge-input" 
+                        style={{ textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.2em' }}
+                        maxLength={6}
+                      />
+                      <button 
+                        onClick={handleVerifyOtp} 
+                        className="button-primary"
+                        disabled={isSendingVerification}
+                        style={{ width: '100%', padding: '1rem' }}
+                      >
+                        {isSendingVerification ? "Verifying..." : "Verify Code"}
+                      </button>
+                      <button 
+                        onClick={handleSendVerification} 
+                        disabled={isSendingVerification}
+                        style={{ background: 'transparent', border: 'none', color: '#94a3b8', marginTop: '0.5rem', cursor: isSendingVerification ? 'not-allowed' : 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
+                      >
+                        Resend Code
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={handleSendVerification} 
+                      className="button-primary"
+                      disabled={isSendingVerification}
+                      style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                      {isSendingVerification ? "Sending..." : "Send Verification Code"}
+                    </button>
+                  )}
+                </div>
               </div>
-            )}
+            ) : (
             <div className="portal-content-box">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
@@ -683,12 +763,12 @@ export default function DevOpsLabClient() {
                 )}
 
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div className="challenges-header">
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       Available Challenges
                     </h2>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div className="category-tabs">
                       {categories.map(cat => (
                         <button
                           key={cat}
@@ -713,12 +793,7 @@ export default function DevOpsLabClient() {
                     </div>
                   </div>
 
-                  {/* Challenge cards grid */}
-                  <div className="challenge-cards" style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))',
-                    gap: '1.5rem'
-                  }}>
+                  <div className="challenge-cards">
                     {isChallengesLoading ? (
                       <p style={{ color: '#94a3b8' }}>Loading challenges...</p>
                     ) : filteredChallenges.length === 0 ? (
@@ -727,11 +802,9 @@ export default function DevOpsLabClient() {
                       pagedChallenges.map((c) => (
                         <div
                           key={c.id}
-                          className="glass-panel"
+                          className="glass-panel challenge-card-panel"
                           style={{
                             border: labType === c.id ? '1px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '12px', padding: '1.5rem', position: 'relative', overflow: 'hidden', transition: 'all 0.2s ease',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2rem'
                           }}
                         >
                           <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: labType === c.id ? 'var(--primary)' : 'transparent', transition: 'background 0.2s ease' }}></div>
@@ -865,6 +938,7 @@ export default function DevOpsLabClient() {
 
               </div>
             </div>
+            )}
           </div>
         </div >
       ) : (
@@ -907,11 +981,11 @@ export default function DevOpsLabClient() {
                     {formatTime(timer)}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '220px' }}>
-                  <button onClick={() => handleStopLab(false)} disabled={isLoading} className="button-primary" style={{ padding: '0.6rem 2rem', fontSize: '0.9rem', width: '100%' }}>
+                <div className="lab-actions">
+                  <button onClick={() => handleStopLab(false)} disabled={isLoading} className="button-primary submit-btn">
                     Submit
                   </button>
-                  <button onClick={() => handleStopLab(true)} disabled={isLoading} className="button-danger" style={{ padding: '0.6rem 2rem', fontSize: '0.8rem', background: '#dc2626', borderColor: '#dc2626', color: 'white', width: '100%' }}>
+                  <button onClick={() => handleStopLab(true)} disabled={isLoading} className="button-danger stop-session-btn">
                     Stop Session
                   </button>
                 </div>
