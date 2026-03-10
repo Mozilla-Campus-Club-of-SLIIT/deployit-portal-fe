@@ -612,6 +612,7 @@ export default function DevOpsLabClient() {
               <nav style={{ display: 'flex', gap: '1.5rem' }}>
                 <Link href="/" style={{ color: 'white', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none', borderBottom: '2px solid var(--primary)', paddingBottom: '4px' }}>Challenges</Link>
                 <Link href="/history" style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none' }}>History</Link>
+                <Link href="/leaderboard" style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none' }}>Leaderboard</Link>
               </nav>
             </div>
             <div className="portal-header-right">

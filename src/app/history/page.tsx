@@ -72,6 +72,7 @@ export default function HistoryPage() {
                     <nav style={{ display: 'flex', gap: '1.5rem' }}>
                         <Link href="/" style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none' }}>Challenges</Link>
                         <Link href="/history" style={{ color: 'white', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none', borderBottom: '2px solid var(--primary)', paddingBottom: '4px' }}>History</Link>
+                        <Link href="/leaderboard" style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 600, textDecoration: 'none' }}>Leaderboard</Link>
                     </nav>
                 </div>
                 <div className="portal-header-right">
@@ -126,8 +127,9 @@ export default function HistoryPage() {
                                         <Link href="/" className="button-primary" style={{ marginTop: '1.5rem', display: 'inline-block', textDecoration: 'none' }}>View Challenges</Link>
                                     </div>
                                 ) : (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', color: '#cbd5e1', fontSize: '0.9rem' }}>
-                                        <thead>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ minWidth: '600px', width: '100%', borderCollapse: 'collapse', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                                            <thead>
                                             <tr style={{ background: 'rgba(255,255,255,0.05)', textAlign: 'left' }}>
                                                 <th style={{ padding: '1.25rem' }}>Challenge</th>
                                                 <th style={{ padding: '1.25rem' }}>Points</th>
@@ -171,7 +173,8 @@ export default function HistoryPage() {
                                                 );
                                             })}
                                         </tbody>
-                                    </table>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         </div>
