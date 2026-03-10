@@ -7,7 +7,7 @@ import Link from "next/link";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function DevOpsLabClient() {
-  const { user, login, signup, logout, resetPassword, sendVerificationEmail } = useAuth();
+  const { user, login, signup, logout, resetPassword, sendVerificationEmail, verifyOtp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -218,10 +218,7 @@ export default function DevOpsLabClient() {
         await signup(email, password, displayName, profileImageFile);
       }
 
-      // Mark first login verification as needed if logging in for the first time
-      if (!localStorage.getItem(`devops_verified_${email}`)) {
-        localStorage.setItem(`devops_first_login_${email}`, "true");
-      }
+      // No longer using localStorage hacks for verification tracking
     } catch (err: any) {
       setAuthError(err.message || "Authentication failed");
     } finally {
@@ -270,20 +267,7 @@ export default function DevOpsLabClient() {
     setAuthError("");
     setIsSendingVerification(true);
     try {
-        const res = await fetch(`${API_URL}/api/verify-otp`, {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ email: user?.email, code: otpCode }),
-        });
-        if (!res.ok) {
-            const err = await res.text();
-            throw new Error(err || "Invalid verification code.");
-        }
-        if (user?.email) {
-            localStorage.setItem(`devops_verified_${user.email}`, "true");
-            localStorage.removeItem(`devops_first_login_${user.email}`);
-            window.location.reload();
-        }
+        await verifyOtp(otpCode);
     } catch (e: any) {
         setAuthError(e.message);
     } finally {
@@ -657,7 +641,7 @@ export default function DevOpsLabClient() {
           </header>
 
           <div className="portal-main">
-            {user?.email && localStorage.getItem(`devops_first_login_${user.email}`) && !localStorage.getItem(`devops_verified_${user.email}`) ? (
+            {user && !user.verified ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '2rem' }}>
                 <div className="glass-panel" style={{ padding: '3rem 2rem', maxWidth: '500px', width: '100%', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
                   <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✉️</div>

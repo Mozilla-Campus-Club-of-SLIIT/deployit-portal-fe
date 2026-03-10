@@ -19,6 +19,7 @@ interface AuthUser {
     photoUrl?: string;
     totalScore?: number;
     role?: string;
+    verified?: boolean;
 }
 
 interface AuthContextType {
@@ -29,6 +30,7 @@ interface AuthContextType {
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
     sendVerificationEmail: () => Promise<void>;
+    verifyOtp: (code: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -101,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             photoUrl: data.user.photoUrl || undefined,
             totalScore: data.user.totalScore || 0,
             role: data.user.role,
+            verified: data.user.verified,
         };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
@@ -146,6 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             photoUrl,
             totalScore: data.user.totalScore || 0,
             role: data.user.role,
+            verified: data.user.verified,
         };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
@@ -176,25 +180,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const sendVerificationEmail = async () => {
-        try {
-            if (!user) return;
-            const response = await fetch(`${API_URL}/api/send-verification`, {
-                method: "POST",
-                headers: { ...authHeaders(), "Content-Type": "application/json" },
-                body: JSON.stringify({ email: user.email }),
-            });
-            if (!response.ok) {
-                const err = await response.text();
-                throw new Error(err.trim() || "Failed to send verification email");
-            }
-        } catch (e: any) {
-            console.warn("[AuthContext] fallback for /api/send-verification, mocking success.");
-            await new Promise(r => setTimeout(r, 800));
+        if (!user) return;
+        const response = await fetch(`${API_URL}/api/send-verification`, {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ email: user.email }),
+        });
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(err.trim() || "Failed to send verification email");
         }
     };
 
+    const verifyOtp = async (code: string) => {
+        if (!user) return;
+        const response = await fetch(`${API_URL}/api/verify-otp`, {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ email: user.email, code }),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(err.trim() || "Invalid verification code");
+        }
+
+        const data = await response.json();
+        const updatedUser: AuthUser = {
+            uid: data.id,
+            email: data.email,
+            displayName: data.displayName,
+            photoUrl: data.photoUrl || undefined,
+            totalScore: data.totalScore || 0,
+            role: data.role,
+            verified: data.verified,
+        };
+
+        setUser(updatedUser);
+        localStorage.setItem("devops_user", JSON.stringify(updatedUser));
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, signup, logout, resetPassword, sendVerificationEmail }}>
+        <AuthContext.Provider value={{ user, loading, login, signup, logout, resetPassword, sendVerificationEmail, verifyOtp }}>
             {!loading && children}
         </AuthContext.Provider>
     );
