@@ -41,7 +41,11 @@ export default function HistoryPage() {
         fetchData();
     }, [user]);
 
-    const totalScore = attempts.reduce((acc, curr) => acc + (curr.scoreEarned || 0), 0);
+    const filteredAttempts = React.useMemo(() => {
+        return attempts.filter(a => a.result === 'SUCCESS' || a.result === 'FAILURE');
+    }, [attempts]);
+
+    const totalScore = filteredAttempts.reduce((acc, curr) => acc + (curr.scoreEarned || 0), 0);
 
     if (!user) {
         return (
@@ -112,7 +116,7 @@ export default function HistoryPage() {
                                         <div className="loading-spinner" style={{ margin: '0 auto 1rem' }}></div>
                                         Loading your history...
                                     </div>
-                                ) : attempts.length === 0 ? (
+                                ) : filteredAttempts.length === 0 ? (
                                     <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8' }}>
                                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📜</div>
                                         <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>No attempts found</h3>
@@ -130,10 +134,10 @@ export default function HistoryPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {attempts.map((attempt, idx) => {
+                                            {filteredAttempts.map((attempt, idx) => {
                                                 const challenge = challenges.find(c => c.id === attempt.challengeId);
                                                 return (
-                                                    <tr key={attempt.id} style={{ borderBottom: idx === attempts.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s ease' }} className="history-row">
+                                                    <tr key={attempt.id} style={{ borderBottom: idx === filteredAttempts.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s ease' }} className="history-row">
                                                         <td style={{ padding: '1.25rem' }}>
                                                             <div style={{ fontWeight: 700, color: 'white' }}>{challenge?.title || attempt.challengeId}</div>
                                                         </td>
