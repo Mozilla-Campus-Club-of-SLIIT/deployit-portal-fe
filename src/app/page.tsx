@@ -2,12 +2,24 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth, authHeaders } from "@/context/AuthContext";
+import { useLab } from "@/context/LabContext";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ProvisioningBanner from "@/components/ProvisioningBanner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function DevOpsLabClient() {
   const { user, login, signup, logout, resetPassword, sendVerificationEmail, verifyOtp } = useAuth();
+  const { 
+    sessionId, setSessionId, labUrl, setLabUrl, labType, setLabType, 
+    timer, setTimer, isLoading, setIsLoading, status, setStatus,
+    challengeResult, setChallengeResult, isEvaluating, setIsEvaluating,
+    resetLabState, recoverSession, setIsProvisioning, isProvisioning
+  } = useLab();
+
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -38,31 +50,17 @@ export default function DevOpsLabClient() {
     setProfileImageFile(file);
     setProfileImagePreview(URL.createObjectURL(file));
   };
-  const [labType, setLabType] = useState<string>("");
   const [challenges, setChallenges] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
   const [isChallengesLoading, setIsChallengesLoading] = useState(true);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [labUrl, setLabUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<{ type: "info" | "success" | "error" | null; message: string }>({
-    type: null,
-    message: "",
-  });
-
-  const [timer, setTimer] = useState<number>(0);
-  const [challengeResult, setChallengeResult] = useState<{ type: "success" | "error" | "info" | null; message: string; output?: string }>({
-    type: null,
-    message: "",
-  });
-
-  const [isLoading, setIsLoading] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
-  const [isEvaluating, setIsEvaluating] = useState(false);
   const [loadingQuoteIndex, setLoadingQuoteIndex] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isInstantKill, setIsInstantKill] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [showProvisioningPopup, setShowProvisioningPopup] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const isProcessingRef = useRef(false);
 
   // Reset to page 1 whenever filter changes
   const handleCategoryChange = (cat: string) => {
@@ -102,36 +100,10 @@ export default function DevOpsLabClient() {
     "“Code is read much more often than it is written.” — Guido van Rossum",
   ];
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const quoteTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ── Restore active session from sessionStorage on page refresh ──────────────
-  useEffect(() => {
-    const savedSession = sessionStorage.getItem("active_lab_session");
-    if (savedSession) {
-      try {
-        const { sessionId: sid, labUrl: url, labType: lt, timer: t } = JSON.parse(savedSession);
-        if (sid && url) {
-          setSessionId(sid);
-          setLabUrl(url);
-          if (lt) setLabType(lt);
-          if (t && t > 0) setTimer(t);
-          setStatus({ type: "success", message: "Session restored after refresh." });
-        }
-      } catch { /* ignore parse errors */ }
-    }
-  }, []);
-
-  // ── Persist session state to sessionStorage whenever it changes ─────────────
-  useEffect(() => {
-    if (sessionId && labUrl) {
-      sessionStorage.setItem("active_lab_session", JSON.stringify({ sessionId, labUrl, labType, timer }));
-    }
-  }, [sessionId, labUrl, labType, timer]);
 
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
       if (quoteTimerRef.current) clearInterval(quoteTimerRef.current);
     };
   }, []);
@@ -143,11 +115,10 @@ export default function DevOpsLabClient() {
         if (!response.ok) throw new Error("Networking issue");
         const data = await response.json();
         setChallenges(data || []);
-        if (data && data.length > 0) {
+        if (data && data.length > 0 && !labType) {
           setLabType(data[0].id);
         }
       } catch (e) {
-        // Suppress console.error here so Next.js doesn't throw a full-screen dev overlay when the Go server is offline
       } finally {
         setIsChallengesLoading(false);
       }
@@ -155,27 +126,12 @@ export default function DevOpsLabClient() {
     fetchChallenges();
   }, [user]);
 
-  useEffect(() => {
-    if (timer > 0) {
-      timerRef.current = setTimeout(() => setTimer(timer - 1), 1000);
-    } else if (timer === 0 && sessionId) {
-      setStatus({ type: "error", message: "Time Expired. Stopping lab..." });
-      stopLab();
-    }
-    return () => clearTimeout(timerRef.current as NodeJS.Timeout);
-  }, [timer, sessionId]);
-
-  // Keep-alive script: Since Cloud Run uses request-based billing (CPU throttling), 
-  // background container processes will freeze without active requests. This pings the container
-  // to trick it into staying awake until the user requests an evaluation.
+  // Keep-alive script
   useEffect(() => {
     let keepAliveInterval: NodeJS.Timeout;
     if (sessionId && labUrl) {
       keepAliveInterval = setInterval(() => {
-        console.log(`[Keep-Alive] Pinging container at ${labUrl} to prevent instance sleep...`);
-        fetch(labUrl, { mode: 'no-cors' }).catch((err) => {
-          console.warn("[Keep-Alive] Ping failed:", err);
-        });
+        fetch(labUrl, { mode: 'no-cors' }).catch(() => {});
       }, 10000);
     }
     return () => {
@@ -277,13 +233,34 @@ export default function DevOpsLabClient() {
 
   const startLab = async (challengeId?: string | any) => {
     const activeLabTypeId = typeof challengeId === 'string' ? challengeId : labType;
-    if (typeof challengeId === 'string') setLabType(challengeId);
 
+    // Prevent multiple concurrent operations
+    if (isProcessingRef.current || isLoading || isProvisioning || isEvaluating) {
+      if (isProvisioning) {
+        setShowProvisioningPopup(true);
+      }
+      return;
+    }
+
+    // Prevent multiple concurrent labs
+    if (sessionId) {
+      if (activeLabTypeId === labType) {
+        setStatus({ type: "info", message: "You already have an active lab session for this challenge." });
+      } else {
+        setStatus({ type: "error", message: "A lab session is already running. Please stop your current lab before starting a new one." });
+      }
+      return;
+    }
+
+    isProcessingRef.current = true;
     setIsLoading(true);
+    setIsProvisioning(true);
+
+    if (typeof challengeId === 'string') setLabType(challengeId);
     setLoadingQuoteIndex(0);
     setStatus({ type: "info", message: "Provisioning Cloud Run container..." });
     setChallengeResult({ type: null, message: "" });
-
+    
     // Start rotating quotes
     quoteTimerRef.current = setInterval(() => {
       setLoadingQuoteIndex((prev) => (prev + 1) % quotes.length);
@@ -297,19 +274,38 @@ export default function DevOpsLabClient() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorText = (await response.text()).trim();
+        if (response.status === 409) {
+          setShowProvisioningPopup(true);
+          
+          recoverSession(true); // Sync with actual provisioning lab metadata
+          return;
+        }
+        throw new Error(errorText || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
+      
+      // If we got back an existing session, make sure we show the correct lab metadata
+      if (data.challengeID && data.challengeID !== labType) {
+        setLabType(data.challengeID);
+        setStatus({ type: "info", message: "Redirecting to your existing active lab session..." });
+      } else {
+        setStatus({ type: "success", message: "Lab successfully started!" });
+      }
+
       setSessionId(data.sessionID);
       setLabUrl(data.url);
       setTimer(data.timeLimit || 300); // Dynamic timer depending on challenge
-      setStatus({ type: "success", message: "Lab successfully started!" });
+      setIsProvisioning(false);
     } catch (error: any) {
       setStatus({ type: "error", message: `Error: ${error.message}` });
       setSessionId(null);
+      setIsProvisioning(false);
+      router.push("/");
     } finally {
       setIsLoading(false);
+      isProcessingRef.current = false;
     }
   };
 
@@ -329,7 +325,8 @@ export default function DevOpsLabClient() {
   };
 
   const stopLab = async (skipEvaluation: boolean = false) => {
-    if (!sessionId) return;
+    if (!sessionId || isProcessingRef.current || isLoading) return;
+    isProcessingRef.current = true;
     setIsLoading(true);
     if (!skipEvaluation) {
       setIsEvaluating(true);
@@ -357,26 +354,20 @@ export default function DevOpsLabClient() {
       } else if (data.result) {
         setChallengeResult({ type: "info", message: "Evaluation Completed", output: data.output });
       } else {
-        setStatus({ type: "success", message: isInstantKill ? "Lab stopped successfully." : "Lab submitted successfully." });
+        setStatus({ type: "success", message: skipEvaluation ? "Lab stopped successfully." : "Lab submitted successfully." });
       }
       fetchAttempts();
     } catch (error: any) {
       setStatus({ type: "error", message: `Error stopping lab: ${error.message}` });
     } finally {
       setIsLoading(false);
+      isProcessingRef.current = false;
       setIsEvaluating(false);
     }
   };
 
 
 
-  const resetLabState = () => {
-    setSessionId(null);
-    setLabUrl(null);
-    setTimer(0);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    sessionStorage.removeItem("active_lab_session"); // clear persisted session
-  };
 
   const formatTime = (totalSeconds: number) => {
     const min = Math.floor(totalSeconds / 60);
@@ -409,20 +400,34 @@ export default function DevOpsLabClient() {
         </div>
       )}
 
-      <div className={`loading-overlay ${(isLoading && !sessionId) || isEvaluating ? "visible" : ""}`}>
+      {showProvisioningPopup && (
+        <div className="confirm-modal-overlay">
+          <div className="confirm-modal-content glass-panel" style={{ maxWidth: '400px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+            <h2 style={{ color: 'white', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="loading-spinner" style={{ width: '20px', height: '20px', margin: 0, borderWidth: '2px' }}></div>
+              Provisioning in Progress
+            </h2>
+            <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>
+              A session is currently being provisioned for your account. Please wait for it to complete before starting a new challenge.
+            </p>
+            <div className="modal-actions" style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button className="button-primary" onClick={() => setShowProvisioningPopup(false)}>
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`loading-overlay ${isEvaluating ? "visible" : ""}`}>
         <div className="loading-content">
           <div className="loading-spinner"></div>
           <h2 className="loading-title">
-            {isEvaluating ? "Analyzing Your Changes..." : isAuthenticating ? "Authenticating..." : "Preparing the Lab"}
+            {isEvaluating ? "Analyzing Your Changes..." : isAuthenticating ? "Authenticating..." : ""}
           </h2>
           <p className="loading-quote">
-            {isEvaluating ? "“Quality is not an act, it is a habit.” — Aristotle" : isAuthenticating ? "Please wait while we sign you in..." : quotes[loadingQuoteIndex]}
+            {isEvaluating ? "“Quality is not an act, it is a habit.” — Aristotle" : isAuthenticating ? "Please wait while we sign you in..." : ""}
           </p>
-          {(!isEvaluating && !isAuthenticating) && (
-            <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.05em' }}>
-              (This takes 30 seconds to 1 minute)
-            </div>
-          )}
         </div>
       </div>
 
@@ -598,7 +603,7 @@ export default function DevOpsLabClient() {
           </div>
         </div>
       ) : !sessionId ? (
-        <div className={`portal-container ${isLoading ? "blurred" : ""}`}>
+        <div className={`portal-container ${isLoading && !isProvisioning ? "blurred" : ""}`}>
           <header className="portal-header">
             <div className="portal-header-left">
               <Link href="/">
@@ -698,13 +703,35 @@ export default function DevOpsLabClient() {
                   )}
                 </div>
               </div>
+            ) : isProvisioning && !sessionId ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 120px)', padding: '1rem', textAlign: 'center', overflow: 'hidden' }}>
+                <div style={{ maxWidth: '800px', width: '100%' }}>
+                  <div className="loading-spinner" style={{ width: '60px', height: '60px', borderWidth: '4px', margin: '0 auto 1.5rem' }}></div>
+                  <h1 style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '1rem', background: 'linear-gradient(135deg, #fff 0%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    Preparing Your Lab
+                  </h1>
+                  <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: 1.5, marginBottom: '2rem' }}>
+                    We're spinning up a dedicated lab environment for <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{labType || "your challenge"}</span>.<br />
+                    This usually takes under a minute.
+                  </p>
+                  
+                  <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto', padding: '1.5rem', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <p style={{ fontStyle: 'italic', color: '#cbd5e1', fontSize: '1rem', margin: 0 }}>
+                      {quotes[loadingQuoteIndex]}
+                    </p>
+                  </div>
+                </div>
+              </div>
             ) : (
             <div className="portal-content-box">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                <ProvisioningBanner />
 
                 {status.message && (
                   <div className={`status-badge ${status.type === "info" ? "status-info" : status.type === "success" ? "status-success" : "status-error"}`}>
-                    {status.message}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <span>{status.message}</span>
+                    </div>
                   </div>
                 )}
 
@@ -811,9 +838,36 @@ export default function DevOpsLabClient() {
                             </div>
                           </div>
                           <div>
-                            <button onClick={() => startLab(c.id)} disabled={isLoading && labType === c.id} className="button-primary" style={{ whiteSpace: 'nowrap' }}>
-                              {isLoading && labType === c.id ? "Starting..." : "Start Challenge"}
-                            </button>
+                            {sessionId && labType === c.id ? (
+                               <button 
+                                 onClick={() => startLab(c.id)} 
+                                 disabled={isLoading || isProvisioning || isEvaluating} 
+                                 className="button-primary" 
+                                 style={{ 
+                                   whiteSpace: 'nowrap', 
+                                   background: 'rgba(16, 185, 129, 0.2)', 
+                                   border: '1px solid #10b981', 
+                                   color: '#10b981',
+                                   opacity: (isLoading || isProvisioning || isEvaluating) ? 0.5 : 1,
+                                   cursor: (isLoading || isProvisioning || isEvaluating) ? 'not-allowed' : 'pointer'
+                                 }}
+                               >
+                                 {(isLoading || isProvisioning) && labType === c.id ? "Connecting..." : "Resume Lab"}
+                               </button>
+                            ) : (
+                              <button 
+                                onClick={() => startLab(c.id)} 
+                                disabled={isLoading || isProvisioning || isEvaluating || (sessionId !== null)} 
+                                className="button-primary" 
+                                style={{ 
+                                  whiteSpace: 'nowrap',
+                                  opacity: (isLoading || isProvisioning || isEvaluating || sessionId !== null) ? 0.5 : 1,
+                                  cursor: (isLoading || isProvisioning || isEvaluating || sessionId !== null) ? 'not-allowed' : 'pointer'
+                                }}
+                              >
+                                {(isLoading || isProvisioning) && labType === c.id ? "Preparing..." : "Start Challenge"}
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))

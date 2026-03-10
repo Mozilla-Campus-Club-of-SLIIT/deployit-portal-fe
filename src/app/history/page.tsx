@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth, authHeaders } from "@/context/AuthContext";
 import Link from "next/link";
+import ProvisioningBanner from "@/components/ProvisioningBanner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -102,6 +103,7 @@ export default function HistoryPage() {
             <div className="portal-main">
                 <div className="portal-content-box">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        <ProvisioningBanner />
                         <div>
                             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                 <svg width="24" height="24" fill="none" stroke="var(--primary)" viewBox="0 0 24 24">

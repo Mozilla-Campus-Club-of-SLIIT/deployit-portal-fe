@@ -21,6 +21,8 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from "@/context/AuthContext";
+import { LabProvider } from "@/context/LabContext";
+import ProvisioningBanner from "@/components/ProvisioningBanner";
 
 export default function RootLayout({
   children,
@@ -31,7 +33,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
         <AuthProvider>
-          {children}
+          <LabProvider>
+            {children}
+          </LabProvider>
         </AuthProvider>
       </body>
     </html>
