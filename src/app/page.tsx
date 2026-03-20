@@ -15,7 +15,7 @@ export default function DevOpsLabClient() {
     sessionId, setSessionId, labUrl, setLabUrl, labType, setLabType, 
     timer, setTimer, isLoading, setIsLoading, status, setStatus,
     challengeResult, setChallengeResult, isEvaluating, setIsEvaluating,
-    resetLabState, recoverSession, setIsProvisioning, isProvisioning, isWarmingUp
+    resetLabState, recoverSession, setIsProvisioning, isProvisioning, isWarmingUp, setIsWarmingUp
   } = useLab();
 
   const router = useRouter();
