@@ -6,22 +6,22 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 
 export default function ProvisioningBanner() {
-    const { isProvisioning, labType } = useLab();
+    const { isProvisioning, labType, isWarmingUp } = useLab();
     const pathname = usePathname();
 
     if (!isProvisioning) return null;
 
     return (
         <div className="provisioning-section">
-            <div className="provisioning-card glass-panel">
+            <div className="provisioning-card glass-panel" style={{ border: isWarmingUp ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(99, 102, 241, 0.3)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: 1 }}>
-                    <div className="loading-spinner" style={{ width: '22px', height: '22px', margin: 0, borderWidth: '2px', flexShrink: 0 }}></div>
+                    <div className="loading-spinner" style={{ width: '22px', height: '22px', margin: 0, borderWidth: '2px', flexShrink: 0, borderColor: isWarmingUp ? 'var(--primary) transparent transparent transparent' : undefined }}></div>
                     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Provisioning in Progress
+                        <span style={{ fontSize: '0.75rem', color: isWarmingUp ? 'var(--primary)' : '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {isWarmingUp ? "Infrastructure Warming Up" : "Provisioning in Progress"}
                         </span>
                         <span style={{ fontSize: '1rem', color: 'white', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Preparing: <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{labType}</span>
+                            {isWarmingUp ? "Configuring GKE Cluster..." : <>Preparing: <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{labType}</span></>}
                         </span>
                     </div>
                 </div>

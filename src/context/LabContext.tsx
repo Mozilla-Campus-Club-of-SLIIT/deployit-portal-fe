@@ -35,6 +35,8 @@ interface LabContextType {
     setChallengeResult: (r: ChallengeResult) => void;
     isProvisioning: boolean;
     setIsProvisioning: (p: boolean) => void;
+    isWarmingUp: boolean;
+    setIsWarmingUp: (w: boolean) => void;
     recoverSession: (isSilent?: boolean) => Promise<boolean>;
     resetLabState: () => void;
 }
@@ -66,6 +68,7 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
             }
         }
     }, []);
+    const [isWarmingUp, setIsWarmingUp] = useState(false);
     const [status, setStatus] = useState<LabStatus>({ type: null, message: "" });
     const [challengeResult, setChallengeResult] = useState<ChallengeResult>({ type: null, message: "" });
 
@@ -76,6 +79,7 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
         setLabUrl(null);
         setTimer(0);
         setIsProvisioning(false);
+        setIsWarmingUp(false);
         if (timerRef.current) clearTimeout(timerRef.current);
         localStorage.removeItem("active_lab_session");
     }, []);
@@ -91,6 +95,10 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
                 // Check if it's still being provisioned (HTTP 202)
                 if (res.status === 202) {
                     setIsProvisioning(true);
+                    const text = await res.text();
+                    if (text.includes("warming up")) {
+                        setIsWarmingUp(true);
+                    }
                     return false;
                 }
                 const data = await res.json();
@@ -100,10 +108,12 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
                 setTimer(data.timeLimit);
                 setStatus({ type: "success", message: "Successfully connected to your lab session!" });
                 setIsProvisioning(false); 
+                setIsWarmingUp(false);
                 return true;
             } else if (res.status === 404) {
                 if (!isSilent) {
                     setIsProvisioning(false);
+                    setIsWarmingUp(false);
                 }
             }
             return false;
@@ -218,7 +228,8 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
             sessionId, setSessionId, labUrl, setLabUrl, labType, setLabType, timer, setTimer,
             isLoading, setIsLoading, isEvaluating, setIsEvaluating,
             status, setStatus, challengeResult, setChallengeResult,
-            isProvisioning, setIsProvisioning, recoverSession, resetLabState
+            isProvisioning, setIsProvisioning, isWarmingUp, setIsWarmingUp,
+            recoverSession, resetLabState
         }}>
             {children}
         </LabContext.Provider>

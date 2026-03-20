@@ -15,7 +15,7 @@ export default function DevOpsLabClient() {
     sessionId, setSessionId, labUrl, setLabUrl, labType, setLabType, 
     timer, setTimer, isLoading, setIsLoading, status, setStatus,
     challengeResult, setChallengeResult, isEvaluating, setIsEvaluating,
-    resetLabState, recoverSession, setIsProvisioning, isProvisioning
+    resetLabState, recoverSession, setIsProvisioning, isProvisioning, isWarmingUp
   } = useLab();
 
   const router = useRouter();
@@ -272,6 +272,17 @@ export default function DevOpsLabClient() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ labType: activeLabTypeId, userId: user?.uid, userEmail: user?.email, userDisplayName: user?.displayName }),
       });
+
+      if (response.status === 202) {
+        const text = await response.text();
+        if (text.includes("warming up")) {
+          setIsWarmingUp(true);
+        }
+        setIsProvisioning(true);
+        setIsLoading(false);
+        isProcessingRef.current = false;
+        return;
+      }
 
       if (!response.ok) {
         const errorText = (await response.text()).trim();
@@ -707,13 +718,16 @@ export default function DevOpsLabClient() {
             ) : isProvisioning && !sessionId ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 120px)', padding: '1rem', textAlign: 'center', overflow: 'hidden' }}>
                 <div style={{ maxWidth: '800px', width: '100%' }}>
-                  <div className="loading-spinner" style={{ width: '60px', height: '60px', borderWidth: '4px', margin: '0 auto 1.5rem' }}></div>
-                  <h1 style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '1rem', background: 'linear-gradient(135deg, #fff 0%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    Preparing Your Lab
+                  <div className="loading-spinner" style={{ width: '60px', height: '60px', borderWidth: '4px', margin: '0 auto 1.5rem', borderColor: isWarmingUp ? 'var(--primary) transparent transparent transparent' : undefined }}></div>
+                  <h1 style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '1rem', background: isWarmingUp ? 'linear-gradient(135deg, var(--primary) 0%, #fff 100%)' : 'linear-gradient(135deg, #fff 0%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    {isWarmingUp ? "Infrastructure is Warming Up" : "Preparing Your Lab"}
                   </h1>
                   <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: 1.5, marginBottom: '2rem' }}>
-                    We're spinning up a dedicated lab environment for <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{labType || "your challenge"}</span>.<br />
-                    This usually takes under a minute.
+                    {isWarmingUp ? (
+                      <>We are spinning up the Kubernetes cluster for today's challenges.<br />This usually takes 3-5 minutes for the first session of the day.</>
+                    ) : (
+                      <>We're spinning up a dedicated lab environment for <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{labType || "your challenge"}</span>.<br />This usually takes under a minute.</>
+                    )}
                   </p>
                   
                   <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto', padding: '1.5rem', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
