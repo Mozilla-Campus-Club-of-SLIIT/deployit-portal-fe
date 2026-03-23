@@ -23,6 +23,7 @@ export default function DevOpsLabClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [university, setUniversity] = useState("SLIIT");
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -171,7 +172,7 @@ export default function DevOpsLabClient() {
       if (isLoginMode) {
         await login(email, password);
       } else {
-        await signup(email, password, displayName, profileImageFile);
+        await signup(email, password, displayName, university, profileImageFile);
       }
 
       // No longer using localStorage hacks for verification tracking
@@ -551,6 +552,20 @@ export default function DevOpsLabClient() {
                               className="challenge-input"
                               style={{ width: '100%' }}
                             />
+                          </div>
+                          
+                          {/* University */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>University</label>
+                            <select
+                              required
+                              value={university}
+                              onChange={(e) => setUniversity(e.target.value)}
+                              className="challenge-input"
+                              style={{ width: '100%', appearance: 'none', backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
+                            >
+                              <option value="SLIIT" style={{ color: 'black' }}>Sri Lanka Institute of Information Technology (SLIIT)</option>
+                            </select>
                           </div>
                         </>
                       )}

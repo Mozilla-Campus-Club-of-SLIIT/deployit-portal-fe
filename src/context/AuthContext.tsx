@@ -20,13 +20,14 @@ interface AuthUser {
     totalScore?: number;
     role?: string;
     verified?: boolean;
+    university?: string;
 }
 
 interface AuthContextType {
     user: AuthUser | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<void>;
-    signup: (email: string, pass: string, displayName: string, photoFile?: File | null) => Promise<void>;
+    signup: (email: string, pass: string, displayName: string, university: string, photoFile?: File | null) => Promise<void>;
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
     sendVerificationEmail: () => Promise<void>;
@@ -104,16 +105,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             totalScore: data.user.totalScore || 0,
             role: data.user.role,
             verified: data.user.verified,
+            university: data.user.university,
         };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
     };
 
-    const signup = async (email: string, pass: string, displayName: string, photoFile?: File | null) => {
+    const signup = async (email: string, pass: string, displayName: string, university: string, photoFile?: File | null) => {
         const response = await fetch(`${API_URL}/api/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password: pass, displayName }),
+            body: JSON.stringify({ email, password: pass, displayName, university }),
         });
 
         if (!response.ok) {
@@ -150,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             totalScore: data.user.totalScore || 0,
             role: data.user.role,
             verified: data.user.verified,
+            university: data.user.university,
         };
         setUser(mappedUser);
         localStorage.setItem("devops_user", JSON.stringify(mappedUser));
@@ -214,6 +217,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             totalScore: data.totalScore || 0,
             role: data.role,
             verified: data.verified,
+            university: data.university,
         };
 
         setUser(updatedUser);
