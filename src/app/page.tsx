@@ -11,8 +11,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function DevOpsLabClient() {
   const { user, login, signup, logout, resetPassword, sendVerificationEmail, verifyOtp } = useAuth();
-  const { 
-    sessionId, setSessionId, labUrl, setLabUrl, labType, setLabType, 
+  const {
+    sessionId, setSessionId, labUrl, setLabUrl, labType, setLabType,
     timer, setTimer, isLoading, setIsLoading, status, setStatus,
     challengeResult, setChallengeResult, isEvaluating, setIsEvaluating,
     resetLabState, recoverSession, setIsProvisioning, isProvisioning, isWarmingUp, setIsWarmingUp
@@ -55,12 +55,13 @@ export default function DevOpsLabClient() {
   const [attempts, setAttempts] = useState<any[]>([]);
   const [isChallengesLoading, setIsChallengesLoading] = useState(true);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
-  const [loadingQuoteIndex, setLoadingQuoteIndex] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isInstantKill, setIsInstantKill] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [showProvisioningPopup, setShowProvisioningPopup] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTerminal, setSelectedTerminal] = useState(0);
   const isProcessingRef = useRef(false);
 
   // Reset to page 1 whenever filter changes
@@ -77,12 +78,22 @@ export default function DevOpsLabClient() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredChallenges = React.useMemo(() => {
-    const all = selectedCategory === "All"
+    let all = selectedCategory === "All"
       ? challenges
       : challenges.filter(c => (c.tags || []).includes(selectedCategory));
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      all = all.filter(c =>
+        c.title.toLowerCase().includes(query) ||
+        c.description.toLowerCase().includes(query) ||
+        (c.tags || []).some((t: string) => t.toLowerCase().includes(query))
+      );
+    }
+
     // Filter out locked challenges from the student view
     return all.filter(c => !c.locked);
-  }, [challenges, selectedCategory]);
+  }, [challenges, selectedCategory, searchQuery]);
 
   const totalPages = Math.ceil(filteredChallenges.length / ITEMS_PER_PAGE);
 
@@ -90,24 +101,6 @@ export default function DevOpsLabClient() {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredChallenges.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredChallenges, currentPage, ITEMS_PER_PAGE]);
-
-  const quotes = [
-    "“If it hurts, do it more frequently, and bring the pain forward.” — Jez Humble",
-    "“Automation is cost-cutting by tightening the corners and not cutting them.” — J. Vlissides",
-    "“There is always a better way.” — Thomas Edison",
-    "“DevOps is not a goal, but a never-ending process of continual improvement.” — Jez Humble",
-    "“The most powerful tool we have as developers is automation.” — Scott Hanselman",
-    "“To improve is to change; to be perfect is to change often.” — Winston Churchill",
-    "“Code is read much more often than it is written.” — Guido van Rossum",
-  ];
-
-  const quoteTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (quoteTimerRef.current) clearInterval(quoteTimerRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     const fetchChallenges = async () => {
@@ -132,7 +125,7 @@ export default function DevOpsLabClient() {
     let keepAliveInterval: NodeJS.Timeout;
     if (sessionId && labUrl) {
       keepAliveInterval = setInterval(() => {
-        fetch(labUrl, { mode: 'no-cors' }).catch(() => {});
+        fetch(labUrl, { mode: 'no-cors' }).catch(() => { });
       }, 10000);
     }
     return () => {
@@ -218,17 +211,17 @@ export default function DevOpsLabClient() {
 
   const handleVerifyOtp = async () => {
     if (otpCode.trim().length < 6) {
-        setAuthError("Please enter a valid 6-digit verification code.");
-        return;
+      setAuthError("Please enter a valid 6-digit verification code.");
+      return;
     }
     setAuthError("");
     setIsSendingVerification(true);
     try {
-        await verifyOtp(otpCode);
+      await verifyOtp(otpCode);
     } catch (e: any) {
-        setAuthError(e.message);
+      setAuthError(e.message);
     } finally {
-        setIsSendingVerification(false);
+      setIsSendingVerification(false);
     }
   };
 
@@ -258,14 +251,8 @@ export default function DevOpsLabClient() {
     setIsProvisioning(true);
 
     if (typeof challengeId === 'string') setLabType(challengeId);
-    setLoadingQuoteIndex(0);
     setStatus({ type: "info", message: "Provisioning Cloud Run container..." });
     setChallengeResult({ type: null, message: "" });
-    
-    // Start rotating quotes
-    quoteTimerRef.current = setInterval(() => {
-      setLoadingQuoteIndex((prev) => (prev + 1) % quotes.length);
-    }, 7000);
 
     try {
       const response = await fetch(`${API_URL}/start-lab`, {
@@ -289,7 +276,7 @@ export default function DevOpsLabClient() {
         const errorText = (await response.text()).trim();
         if (response.status === 409) {
           setShowProvisioningPopup(true);
-          
+
           recoverSession(true); // Sync with actual provisioning lab metadata
           return;
         }
@@ -297,7 +284,7 @@ export default function DevOpsLabClient() {
       }
 
       const data = await response.json();
-      
+
       // If we got back an existing session, make sure we show the correct lab metadata
       if (data.challengeID && data.challengeID !== labType) {
         setLabType(data.challengeID);
@@ -553,7 +540,7 @@ export default function DevOpsLabClient() {
                               style={{ width: '100%' }}
                             />
                           </div>
-                          
+
                           {/* University */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>University</label>
@@ -693,25 +680,25 @@ export default function DevOpsLabClient() {
                       <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1rem', borderRadius: '8px', fontWeight: 700, marginBottom: '0.5rem' }}>
                         Verification code sent! Check your inbox.
                       </div>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value)}
-                        placeholder="Enter 6-digit code" 
-                        className="challenge-input" 
+                        placeholder="Enter 6-digit code"
+                        className="challenge-input"
                         style={{ textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.2em' }}
                         maxLength={6}
                       />
-                      <button 
-                        onClick={handleVerifyOtp} 
+                      <button
+                        onClick={handleVerifyOtp}
                         className="button-primary"
                         disabled={isSendingVerification}
                         style={{ width: '100%', padding: '1rem' }}
                       >
                         {isSendingVerification ? "Verifying..." : "Verify Code"}
                       </button>
-                      <button 
-                        onClick={handleSendVerification} 
+                      <button
+                        onClick={handleSendVerification}
                         disabled={isSendingVerification}
                         style={{ background: 'transparent', border: 'none', color: '#94a3b8', marginTop: '0.5rem', cursor: isSendingVerification ? 'not-allowed' : 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
                       >
@@ -719,8 +706,8 @@ export default function DevOpsLabClient() {
                       </button>
                     </div>
                   ) : (
-                    <button 
-                      onClick={handleSendVerification} 
+                    <button
+                      onClick={handleSendVerification}
                       className="button-primary"
                       disabled={isSendingVerification}
                       style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
@@ -737,77 +724,92 @@ export default function DevOpsLabClient() {
                   <h1 style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '1rem', background: isWarmingUp ? 'linear-gradient(135deg, var(--primary) 0%, #fff 100%)' : 'linear-gradient(135deg, #fff 0%, #94a3b8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                     {isWarmingUp ? "Infrastructure is Warming Up" : "Preparing Your Lab"}
                   </h1>
-                  <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: 1.5, marginBottom: '2rem' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '1.1rem', lineHeight: 1.5, marginBottom: '3rem' }}>
                     {isWarmingUp ? (
                       <>We are spinning up the Kubernetes cluster for today's challenges.<br />This usually takes 3-5 minutes for the first session of the day.</>
                     ) : (
-                      <>We're spinning up a dedicated lab environment for <span style={{ color: 'var(--primary)', fontWeight: 800 }}>{labType || "your challenge"}</span>.<br />This usually takes under a minute.</>
+                      <>We're spinning up a dedicated lab environment for your challenge.<br />This usually takes under a minute.</>
                     )}
                   </p>
-                  
-                  <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto', padding: '1.5rem', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                    <p style={{ fontStyle: 'italic', color: '#cbd5e1', fontSize: '1rem', margin: 0 }}>
-                      {quotes[loadingQuoteIndex]}
-                    </p>
-                  </div>
+
+                  {/* Challenge description hidden during provisioning as requested */}
+
                 </div>
               </div>
             ) : (
-            <div className="portal-content-box">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                <ProvisioningBanner />
+              <div className="portal-content-box">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                  <ProvisioningBanner />
 
-                {status.message && (
-                  <div className={`status-badge ${status.type === "info" ? "status-info" : status.type === "success" ? "status-success" : "status-error"}`}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                      <span>{status.message}</span>
-                    </div>
-                  </div>
-                )}
-
-                {challengeResult.message && (
-                  <div className={`result-page-card ${challengeResult.type === "success" ? "result-success" : "result-failure"}`}
-                    style={{
-                      padding: '2rem',
-                      borderRadius: '16px',
-                      background: challengeResult.type === "success" ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                      border: challengeResult.type === "success" ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
-                      textAlign: 'center'
-                    }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-                      {challengeResult.type === "success" ? "🏆" : "❌"}
-                    </div>
-                    <h2 style={{ fontSize: '2rem', fontWeight: 900, margin: 0, color: challengeResult.type === "success" ? '#10b981' : '#ef4444' }}>
-                      {challengeResult.message}
-                    </h2>
-                    <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
-                      {challengeResult.type === "success" ? "Great job! You have met all the evaluation criteria." : "Keep trying! Your changes didn't meet the requirements yet."}
-                    </p>
-
-                    {challengeResult.output && (
-                      <div style={{ marginTop: '1.5rem', textAlign: 'left' }}>
-                        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700 }}>Evaluation Logs</div>
-                        <pre style={{ background: 'rgba(0,0,0,0.4)', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', color: '#cbd5e1', overflow: 'auto', maxHeight: '200px', border: '1px solid rgba(255,255,255,0.05)', fontFamily: 'monospace' }}>
-                          {challengeResult.output}
-                        </pre>
+                  {status.message && (
+                    <div className={`status-badge ${status.type === "info" ? "status-info" : status.type === "success" ? "status-success" : "status-error"}`}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                        <span>{status.message}</span>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    <button
-                      onClick={() => setChallengeResult({ type: null, message: "" })}
-                      className="button-secondary"
-                      style={{ marginTop: '2rem' }}
-                    >
-                      Back to Challenges
-                    </button>
-                  </div>
-                )}
+                  {challengeResult.message && (
+                    <div className={`result-page-card ${challengeResult.type === "success" ? "result-success" : "result-failure"}`}
+                      style={{
+                        padding: '2rem',
+                        borderRadius: '16px',
+                        background: challengeResult.type === "success" ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        border: challengeResult.type === "success" ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
+                        textAlign: 'center'
+                      }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+                        {challengeResult.type === "success" ? "🏆" : "❌"}
+                      </div>
+                      <h2 style={{ fontSize: '2rem', fontWeight: 900, margin: 0, color: challengeResult.type === "success" ? '#10b981' : '#ef4444' }}>
+                        {challengeResult.message}
+                      </h2>
+                      <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
+                        {challengeResult.type === "success" ? "Great job! You have met all the evaluation criteria." : "Keep trying! Your changes didn't meet the requirements yet."}
+                      </p>
 
-                <div>
-                  <div className="challenges-header">
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      Available Challenges
-                    </h2>
+                      {challengeResult.output && (
+                        <div style={{ marginTop: '1.5rem', textAlign: 'left' }}>
+                          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700 }}>Evaluation Logs</div>
+                          <pre style={{ background: 'rgba(0,0,0,0.4)', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', color: '#cbd5e1', overflow: 'auto', maxHeight: '200px', border: '1px solid rgba(255,255,255,0.05)', fontFamily: 'monospace' }}>
+                            {challengeResult.output}
+                          </pre>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => setChallengeResult({ type: null, message: "" })}
+                        className="button-secondary"
+                        style={{ marginTop: '2rem' }}
+                      >
+                        Back to Challenges
+                      </button>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="page-header-flex">
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Available Challenges
+                      </h2>
+
+                      <div className="search-container">
+                        <input
+                          type="text"
+                          placeholder="Search title, tech or description..."
+                          value={searchQuery}
+                          onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                          className="search-input"
+                        />
+                        <svg
+                          className="search-icon"
+                          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        >
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                      </div>
+                    </div>
 
                     <div className="category-tabs">
                       {categories.map(cat => (
@@ -832,180 +834,179 @@ export default function DevOpsLabClient() {
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  <div className="challenge-cards">
-                    {isChallengesLoading ? (
-                      <p style={{ color: '#94a3b8' }}>Loading challenges...</p>
-                    ) : filteredChallenges.length === 0 ? (
-                      <p style={{ color: '#94a3b8' }}>No challenges found for this category.</p>
-                    ) : (
-                      pagedChallenges.map((c) => (
-                        <div
-                          key={c.id}
-                          className="glass-panel challenge-card-panel"
+                    <div className="challenge-cards">
+                      {isChallengesLoading ? (
+                        <p style={{ color: '#94a3b8' }}>Loading challenges...</p>
+                      ) : filteredChallenges.length === 0 ? (
+                        <p style={{ color: '#94a3b8' }}>No challenges found matching your criteria.</p>
+                      ) : (
+                        pagedChallenges.map((c) => (
+                          <div
+                            key={c.id}
+                            className="glass-panel challenge-card-panel"
+                            style={{
+                              border: labType === c.id ? '1px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.1)',
+                            }}
+                          >
+                            <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: labType === c.id ? 'var(--primary)' : 'transparent', transition: 'background 0.2s ease' }}></div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <div style={{ background: labType === c.id ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '8px', color: labType === c.id ? 'var(--primary)' : '#94a3b8' }}>
+                                  <img src="/file.svg" alt="Challenge File Icon" style={{ width: '20px', height: '20px', display: 'block', filter: labType === c.id ? 'invert(60%) sepia(85%) saturate(3002%) hue-rotate(218deg) brightness(98%) contrast(92%)' : 'invert(75%) sepia(12%) saturate(366%) hue-rotate(185deg) brightness(88%) contrast(85%)' }} />
+                                </div>
+                                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white' }}>{c.title}</h4>
+                              </div>
+                              <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.6, marginBottom: '0' }}>
+                                {c.description}
+                              </p>
+                              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', marginRight: '0.5rem' }}>+{c.score} pts</span>
+                                <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#cbd5e1' }}>{c.difficulty}</span>
+                                {c.tags?.map((t: string) => (
+                                  <span key={t} style={{ fontSize: '0.7rem', background: 'rgba(99,102,241,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#818cf8' }}>{t}</span>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              {sessionId && labType === c.id ? (
+                                <button
+                                  onClick={() => startLab(c.id)}
+                                  disabled={isLoading || isProvisioning || isEvaluating}
+                                  className="button-primary"
+                                  style={{
+                                    whiteSpace: 'nowrap',
+                                    background: 'rgba(16, 185, 129, 0.2)',
+                                    border: '1px solid #10b981',
+                                    color: '#10b981',
+                                    opacity: (isLoading || isProvisioning || isEvaluating) ? 0.5 : 1,
+                                    cursor: (isLoading || isProvisioning || isEvaluating) ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  {(isLoading || isProvisioning) && labType === c.id ? "Connecting..." : "Resume Lab"}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => startLab(c.id)}
+                                  disabled={isLoading || isProvisioning || isEvaluating || (sessionId !== null)}
+                                  className="button-primary"
+                                  style={{
+                                    whiteSpace: 'nowrap',
+                                    opacity: (isLoading || isProvisioning || isEvaluating || sessionId !== null) ? 0.5 : 1,
+                                    cursor: (isLoading || isProvisioning || isEvaluating || sessionId !== null) ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  {(isLoading || isProvisioning) && labType === c.id ? "Preparing..." : "Start Challenge"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* ── Pagination bar ── */}
+                    {totalPages > 1 && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        marginTop: '2rem',
+                        flexWrap: 'wrap',
+                      }}>
+                        {/* Prev */}
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
                           style={{
-                            border: labType === c.id ? '1px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.1)',
+                            padding: '0.45rem 1rem',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'transparent',
+                            color: currentPage === 1 ? '#475569' : '#94a3b8',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s ease',
                           }}
                         >
-                          <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: labType === c.id ? 'var(--primary)' : 'transparent', transition: 'background 0.2s ease' }}></div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                              <div style={{ background: labType === c.id ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '8px', color: labType === c.id ? 'var(--primary)' : '#94a3b8' }}>
-                                <img src="/file.svg" alt="Challenge File Icon" style={{ width: '20px', height: '20px', display: 'block', filter: labType === c.id ? 'invert(60%) sepia(85%) saturate(3002%) hue-rotate(218deg) brightness(98%) contrast(92%)' : 'invert(75%) sepia(12%) saturate(366%) hue-rotate(185deg) brightness(88%) contrast(85%)' }} />
-                              </div>
-                              <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'white' }}>{c.title}</h4>
-                            </div>
-                            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.6, marginBottom: '0' }}>
-                              {c.description}
-                            </p>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', marginRight: '0.5rem' }}>+{c.score} pts</span>
-                              <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#cbd5e1' }}>{c.difficulty}</span>
-                              {c.tags?.map((t: string) => (
-                                <span key={t} style={{ fontSize: '0.7rem', background: 'rgba(99,102,241,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#818cf8' }}>{t}</span>
-                              ))}
-                            </div>
-                          </div>
-                          <div>
-                            {sessionId && labType === c.id ? (
-                               <button 
-                                 onClick={() => startLab(c.id)} 
-                                 disabled={isLoading || isProvisioning || isEvaluating} 
-                                 className="button-primary" 
-                                 style={{ 
-                                   whiteSpace: 'nowrap', 
-                                   background: 'rgba(16, 185, 129, 0.2)', 
-                                   border: '1px solid #10b981', 
-                                   color: '#10b981',
-                                   opacity: (isLoading || isProvisioning || isEvaluating) ? 0.5 : 1,
-                                   cursor: (isLoading || isProvisioning || isEvaluating) ? 'not-allowed' : 'pointer'
-                                 }}
-                               >
-                                 {(isLoading || isProvisioning) && labType === c.id ? "Connecting..." : "Resume Lab"}
-                               </button>
+                          ← Prev
+                        </button>
+
+                        {/* Page numbers */}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                          .filter(page => {
+                            // Show first, last, current ±1, and ellipsis hints
+                            if (totalPages <= 7) return true;
+                            return page === 1 || page === totalPages ||
+                              Math.abs(page - currentPage) <= 1;
+                          })
+                          .reduce<(number | '...')[]>((acc, page, idx, arr) => {
+                            if (idx > 0 && typeof arr[idx - 1] === 'number' && (arr[idx - 1] as number) + 1 < page) {
+                              acc.push('...');
+                            }
+                            acc.push(page);
+                            return acc;
+                          }, [])
+                          .map((item, idx) =>
+                            item === '...' ? (
+                              <span key={`ellipsis-${idx}`} style={{ color: '#475569', padding: '0 0.25rem', fontSize: '0.85rem' }}>…</span>
                             ) : (
-                              <button 
-                                onClick={() => startLab(c.id)} 
-                                disabled={isLoading || isProvisioning || isEvaluating || (sessionId !== null)} 
-                                className="button-primary" 
-                                style={{ 
-                                  whiteSpace: 'nowrap',
-                                  opacity: (isLoading || isProvisioning || isEvaluating || sessionId !== null) ? 0.5 : 1,
-                                  cursor: (isLoading || isProvisioning || isEvaluating || sessionId !== null) ? 'not-allowed' : 'pointer'
+                              <button
+                                key={item}
+                                onClick={() => setCurrentPage(item as number)}
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '8px',
+                                  border: '1px solid',
+                                  borderColor: currentPage === item ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
+                                  background: currentPage === item ? 'rgba(245,158,11,0.15)' : 'transparent',
+                                  color: currentPage === item ? 'var(--primary)' : '#94a3b8',
+                                  fontSize: '0.8rem',
+                                  fontWeight: currentPage === item ? 800 : 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease',
                                 }}
                               >
-                                {(isLoading || isProvisioning) && labType === c.id ? "Preparing..." : "Start Challenge"}
+                                {item}
                               </button>
-                            )}
-                          </div>
-                        </div>
-                      ))
+                            )
+                          )
+                        }
+
+                        {/* Next */}
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          style={{
+                            padding: '0.45rem 1rem',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'transparent',
+                            color: currentPage === totalPages ? '#475569' : '#94a3b8',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          Next →
+                        </button>
+
+                        {/* Count summary */}
+                        <span style={{ fontSize: '0.75rem', color: '#475569', marginLeft: '0.5rem' }}>
+                          {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredChallenges.length)} of {filteredChallenges.length}
+                        </span>
+                      </div>
                     )}
                   </div>
 
-                  {/* ── Pagination bar ── */}
-                  {totalPages > 1 && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      marginTop: '2rem',
-                      flexWrap: 'wrap',
-                    }}>
-                      {/* Prev */}
-                      <button
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        style={{
-                          padding: '0.45rem 1rem',
-                          borderRadius: '8px',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          background: 'transparent',
-                          color: currentPage === 1 ? '#475569' : '#94a3b8',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        ← Prev
-                      </button>
 
-                      {/* Page numbers */}
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(page => {
-                          // Show first, last, current ±1, and ellipsis hints
-                          if (totalPages <= 7) return true;
-                          return page === 1 || page === totalPages ||
-                            Math.abs(page - currentPage) <= 1;
-                        })
-                        .reduce<(number | '...')[]>((acc, page, idx, arr) => {
-                          if (idx > 0 && typeof arr[idx - 1] === 'number' && (arr[idx - 1] as number) + 1 < page) {
-                            acc.push('...');
-                          }
-                          acc.push(page);
-                          return acc;
-                        }, [])
-                        .map((item, idx) =>
-                          item === '...' ? (
-                            <span key={`ellipsis-${idx}`} style={{ color: '#475569', padding: '0 0.25rem', fontSize: '0.85rem' }}>…</span>
-                          ) : (
-                            <button
-                              key={item}
-                              onClick={() => setCurrentPage(item as number)}
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '8px',
-                                border: '1px solid',
-                                borderColor: currentPage === item ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-                                background: currentPage === item ? 'rgba(245,158,11,0.15)' : 'transparent',
-                                color: currentPage === item ? 'var(--primary)' : '#94a3b8',
-                                fontSize: '0.8rem',
-                                fontWeight: currentPage === item ? 800 : 600,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                              }}
-                            >
-                              {item}
-                            </button>
-                          )
-                        )
-                      }
 
-                      {/* Next */}
-                      <button
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        style={{
-                          padding: '0.45rem 1rem',
-                          borderRadius: '8px',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          background: 'transparent',
-                          color: currentPage === totalPages ? '#475569' : '#94a3b8',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s ease',
-                        }}
-                      >
-                        Next →
-                      </button>
-
-                      {/* Count summary */}
-                      <span style={{ fontSize: '0.75rem', color: '#475569', marginLeft: '0.5rem' }}>
-                        {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredChallenges.length)} of {filteredChallenges.length}
-                      </span>
-                    </div>
-                  )}
                 </div>
-
-
-
               </div>
-            </div>
             )}
           </div>
         </div >
@@ -1026,10 +1027,10 @@ export default function DevOpsLabClient() {
 
                 <h3 className="challenge-title">
                   <img src="/file.svg" alt="Challenge File Icon" style={{ width: '16px', height: '16px', display: 'inline-block', marginRight: '8px', filter: 'invert(80%) sepia(20%) saturate(300%) hue-rotate(180deg) brightness(98%) contrast(92%)' }} />
-                  {activeChallengeDef?.title || "DevOps Challenge"}
+                  {!isProvisioning ? (activeChallengeDef?.title || "DevOps Challenge") : "Environment Setup"}
                 </h3>
                 <p className="challenge-desc">
-                  {activeChallengeDef?.description || "A secret flag string is injected into the container. Find and extract it!"}
+                  {!isProvisioning ? (activeChallengeDef?.description || "A secret flag string is injected into the container. Find and extract it!") : "Preparing your secure sandbox... Get ready to Deploy(it)!"}
                 </p>
 
 
@@ -1069,16 +1070,41 @@ export default function DevOpsLabClient() {
                   <div className="mac-dot dot-yellow"></div>
                   <div className="mac-dot dot-green"></div>
                 </div>
-                <div className="header-title">
-                  cloud-run-tty: {labType} — bash (ID: {sessionId})
+                <div className="header-title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <span>cloud-run-tty: {labType} — bash (ID: {sessionId})</span>
+                  <div style={{ display: 'flex', gap: '0.25rem', background: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '4px' }}>
+                    {[0, 1, 2].map((id) => (
+                      <button
+                        key={id}
+                        onClick={() => setSelectedTerminal(id)}
+                        style={{
+                          background: selectedTerminal === id ? 'rgba(255,255,255,0.1)' : 'transparent',
+                          border: 'none',
+                          color: selectedTerminal === id ? 'white' : '#64748b',
+                          padding: '2px 10px',
+                          borderRadius: '3px',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: selectedTerminal === id ? '#10b981' : '#475569' }}></div>
+                        T{id + 1}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {labUrl && (
                 <iframe
-                  src={labUrl}
+                  src={`${labUrl}${labUrl.includes('?') ? '&' : '?'}terminal=${selectedTerminal}`}
                   className="iframe-window"
-                  title="Lab Terminal"
+                  title={`Lab Terminal ${selectedTerminal + 1}`}
                   allow="clipboard-read; clipboard-write"
                 />
               )}

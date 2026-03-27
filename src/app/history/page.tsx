@@ -12,6 +12,9 @@ export default function HistoryPage() {
     const [attempts, setAttempts] = useState<any[]>([]);
     const [challenges, setChallenges] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     useEffect(() => {
         const fetchData = async () => {
@@ -43,8 +46,23 @@ export default function HistoryPage() {
     }, [user]);
 
     const filteredAttempts = React.useMemo(() => {
-        return attempts.filter(a => a.result === 'SUCCESS' || a.result === 'FAILURE');
-    }, [attempts]);
+        let all = attempts.filter(a => a.result === 'SUCCESS' || a.result === 'FAILURE');
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            all = all.filter(a => {
+                const challenge = challenges.find(c => c.id === a.challengeId);
+                return challenge?.title?.toLowerCase().includes(query) || a.challengeId.toLowerCase().includes(query);
+            });
+        }
+        return all;
+    }, [attempts, searchQuery, challenges]);
+
+    const totalPages = Math.ceil(filteredAttempts.length / ITEMS_PER_PAGE);
+    
+    const pagedAttempts = React.useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredAttempts.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredAttempts, currentPage]);
 
     const totalScore = filteredAttempts.reduce((acc, curr) => acc + (curr.scoreEarned || 0), 0);
 
@@ -106,12 +124,31 @@ export default function HistoryPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                         <ProvisioningBanner />
                         <div>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <svg width="24" height="24" fill="none" stroke="var(--primary)" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Evaluation History
-                            </h2>
+                                <div className="page-header-flex">
+                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                        <svg width="24" height="24" fill="none" stroke="var(--primary)" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Evaluation History
+                                    </h2>
+
+                                    <div className="search-container">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by challenge name..."
+                                            value={searchQuery}
+                                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                            className="search-input"
+                                        />
+                                        <svg
+                                            className="search-icon"
+                                            width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                        >
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                    </div>
+                                </div>
 
                             <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
                                 {isLoading ? (
@@ -122,8 +159,8 @@ export default function HistoryPage() {
                                 ) : filteredAttempts.length === 0 ? (
                                     <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#94a3b8' }}>
                                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📜</div>
-                                        <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>No attempts found</h3>
-                                        <p>You haven't completed any challenges yet. Your results will appear here!</p>
+                                        <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>No records found</h3>
+                                        <p>{searchQuery ? "Try adjusting your search query." : "You haven't completed any challenges yet. Your results will appear here!"}</p>
                                         <Link href="/" className="button-primary" style={{ marginTop: '1.5rem', display: 'inline-block', textDecoration: 'none' }}>View Challenges</Link>
                                     </div>
                                 ) : (
@@ -138,10 +175,10 @@ export default function HistoryPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredAttempts.map((attempt, idx) => {
+                                            {pagedAttempts.map((attempt, idx) => {
                                                 const challenge = challenges.find(c => c.id === attempt.challengeId);
                                                 return (
-                                                    <tr key={attempt.id} style={{ borderBottom: idx === filteredAttempts.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s ease' }} className="history-row">
+                                                    <tr key={attempt.id} style={{ borderBottom: idx === pagedAttempts.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s ease' }} className="history-row">
                                                         <td style={{ padding: '1.25rem' }}>
                                                             <div style={{ fontWeight: 700, color: 'white' }}>{challenge?.title || attempt.challengeId}</div>
                                                         </td>
@@ -174,6 +211,36 @@ export default function HistoryPage() {
                                             })}
                                         </tbody>
                                         </table>
+                                    </div>
+                                )}
+                                
+                                {!isLoading && totalPages > 1 && (
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(0,0,0,0.1)' }}>
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                            style={{
+                                                padding: '0.5rem 1rem', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: currentPage === 1 ? '#64748b' : 'white', borderRadius: '8px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.85rem', transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')}
+                                            onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)')}
+                                        >
+                                            Previous
+                                        </button>
+                                        <div style={{ color: '#94a3b8', fontSize: '0.85rem', fontWeight: 600 }}>
+                                            Page <span style={{ color: 'white' }}>{currentPage}</span> of <span style={{ color: 'white' }}>{totalPages}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={currentPage === totalPages}
+                                            style={{
+                                                padding: '0.5rem 1rem', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: currentPage === totalPages ? '#64748b' : 'white', borderRadius: '8px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.85rem', transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')}
+                                            onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)')}
+                                        >
+                                            Next
+                                        </button>
                                     </div>
                                 )}
                             </div>

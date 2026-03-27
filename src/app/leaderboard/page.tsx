@@ -6,10 +6,39 @@ import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-const RANK_STYLE: Record<number, { bg: string; text: string; label: string }> = {
-    0: { bg: "bg-yellow-400", text: "text-black", label: "🥇" },
-    1: { bg: "bg-gray-300", text: "text-black", label: "🥈" },
-    2: { bg: "bg-amber-700", text: "text-white", label: "🥉" },
+const TrophyIcon = ({ color }: { color: string }) => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+        <path d="M4 22h16"></path>
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+    </svg>
+);
+
+const MedalIcon = ({ color }: { color: string }) => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"></path>
+        <path d="M11 12 5.12 2.2"></path>
+        <path d="M13 12l5.88-9.8"></path>
+        <path d="M8 7h8"></path>
+        <circle cx="12" cy="17" r="5"></circle>
+        <path d="M12 18v-2h-.5"></path>
+    </svg>
+);
+
+const AwardIcon = ({ color }: { color: string }) => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="6"></circle>
+        <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"></path>
+    </svg>
+);
+
+const RANK_STYLE: Record<number, { bg: string; text: string; label: React.ReactNode }> = {
+    0: { bg: "bg-yellow-400", text: "text-black", label: <TrophyIcon color="#000" /> },
+    1: { bg: "bg-gray-300", text: "text-black", label: <MedalIcon color="#000" /> },
+    2: { bg: "bg-amber-700", text: "text-white", label: <AwardIcon color="#fff" /> },
 };
 
 function Avatar({ photoUrl, displayName, size = 40 }: { photoUrl?: string; displayName: string; size?: number }) {
@@ -71,16 +100,26 @@ export default function LeaderboardPage() {
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const ITEMS_PER_PAGE = 10;
     const [currentPage, setCurrentPage] = useState(1);
 
-    const totalPages = Math.ceil(leaderboard.length / ITEMS_PER_PAGE);
+    const filteredLeaderboard = React.useMemo(() => {
+        if (!searchQuery.trim()) return leaderboard;
+        const query = searchQuery.toLowerCase();
+        return leaderboard.filter(u => 
+            u.displayName?.toLowerCase().includes(query) || 
+            u.email?.toLowerCase().includes(query)
+        );
+    }, [leaderboard, searchQuery]);
+
+    const totalPages = Math.ceil(filteredLeaderboard.length / ITEMS_PER_PAGE);
     
     const pagedLeaderboard = React.useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return leaderboard.slice(start, start + ITEMS_PER_PAGE);
-    }, [leaderboard, currentPage]);
+        return filteredLeaderboard.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredLeaderboard, currentPage]);
 
     // To display total score in header
     const [attempts, setAttempts] = useState<any[]>([]);
@@ -191,9 +230,28 @@ export default function LeaderboardPage() {
                         <h1 style={{ fontSize: '3rem', fontWeight: 900, color: 'white' }}>
                             <span style={{ color: '#fbbf24' }}>Leaderboard</span>
                         </h1>
-                        <p style={{ color: '#94a3b8', fontSize: '1.1rem', marginTop: '1rem' }}>
+                        <p style={{ color: '#94a3b8', fontSize: '1.1rem', marginTop: '1rem', marginBottom: '1.5rem' }}>
                             Precision, speed, and mastery. The Ninja elite of Deploy(it).
                         </p>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+                            <div className="search-container" style={{ maxWidth: '500px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Search for a Ninja / User..."
+                                    value={searchQuery}
+                                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                    className="search-input"
+                                />
+                                <svg
+                                    className="search-icon"
+                                    width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                >
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            </div>
+                        </div>
                     </div>
 
                     {error && (
@@ -219,10 +277,10 @@ export default function LeaderboardPage() {
                                                 Synchronizing global rankings...
                                             </td>
                                         </tr>
-                                    ) : leaderboard.length === 0 && !error ? (
+                                    ) : filteredLeaderboard.length === 0 && !error ? (
                                         <tr>
                                             <td colSpan={3} style={{ padding: '3rem 1.5rem', textAlign: 'center', color: '#64748b', fontStyle: 'italic', fontSize: '0.875rem' }}>
-                                                No field data recorded yet.
+                                                {searchQuery ? "No Ninjas found matching your search." : "No field data recorded yet."}
                                             </td>
                                         </tr>
                                     ) : (
@@ -288,7 +346,7 @@ export default function LeaderboardPage() {
                         </div>
                     </div>
 
-                    {!loading && leaderboard.length > 0 && (
+                    {!loading && filteredLeaderboard.length > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1.5rem', marginTop: '2rem' }}>
                             <button
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
