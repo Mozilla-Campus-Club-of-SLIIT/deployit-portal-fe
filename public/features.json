@@ -1,5 +1,6 @@
 {
   "showEvaluationLogs": false,
+  "showHistoryTab": false,
   "showLeaderboard": false,
   "registrationOpen": false
 }

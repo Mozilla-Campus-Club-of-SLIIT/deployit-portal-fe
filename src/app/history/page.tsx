@@ -14,6 +14,11 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [features, setFeatures] = useState<{
+    showHistoryTab?: boolean;
+  }>({
+    showHistoryTab: false,
+  });
   const ITEMS_PER_PAGE = 10;
 
   const parseAttemptDate = (value: any): Date => {
@@ -70,6 +75,21 @@ export default function HistoryPage() {
     };
     fetchData();
   }, [user]);
+
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const response = await fetch("/features.json");
+        if (response.ok) {
+          const data = await response.json();
+          setFeatures(data);
+        }
+      } catch (e) {
+        console.debug("Failed to load features configuration", e);
+      }
+    };
+    fetchFeatures();
+  }, []);
 
   const filteredAttempts = React.useMemo(() => {
     let all = attempts.filter(
@@ -176,19 +196,21 @@ export default function HistoryPage() {
             >
               Challenges
             </Link>
-            <Link
-              href="/history"
-              style={{
-                color: "white",
-                fontSize: "0.9rem",
-                fontWeight: 600,
-                textDecoration: "none",
-                borderBottom: "2px solid var(--primary)",
-                paddingBottom: "4px",
-              }}
-            >
-              History
-            </Link>
+            {features.showHistoryTab && (
+              <Link
+                href="/history"
+                style={{
+                  color: "white",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  borderBottom: "2px solid var(--primary)",
+                  paddingBottom: "4px",
+                }}
+              >
+                History
+              </Link>
+            )}
             <Link
               href="/leaderboard"
               style={{

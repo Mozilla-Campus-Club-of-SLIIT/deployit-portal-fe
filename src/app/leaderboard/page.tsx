@@ -151,6 +151,11 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [features, setFeatures] = useState<{
+    showHistoryTab?: boolean;
+  }>({
+    showHistoryTab: false,
+  });
 
   const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState(1);
@@ -224,6 +229,21 @@ export default function LeaderboardPage() {
     fetchLeaderboard();
   }, [user]);
 
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const response = await fetch("/features.json");
+        if (response.ok) {
+          const data = await response.json();
+          setFeatures(data);
+        }
+      } catch (e) {
+        console.debug("Failed to load features configuration", e);
+      }
+    };
+    fetchFeatures();
+  }, []);
+
   if (!user) {
     return (
       <div className="portal-container">
@@ -273,17 +293,19 @@ export default function LeaderboardPage() {
             >
               Challenges
             </Link>
-            <Link
-              href="/history"
-              style={{
-                color: "#94a3b8",
-                fontSize: "0.9rem",
-                fontWeight: 600,
-                textDecoration: "none",
-              }}
-            >
-              History
-            </Link>
+            {features.showHistoryTab && (
+              <Link
+                href="/history"
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                }}
+              >
+                History
+              </Link>
+            )}
             <Link
               href="/leaderboard"
               style={{

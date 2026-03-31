@@ -95,10 +95,12 @@ export default function DevOpsLabClient() {
   const isProcessingRef = useRef(false);
   const [features, setFeatures] = useState<{
     showEvaluationLogs?: boolean;
+    showHistoryTab?: boolean;
     showLeaderboard?: boolean;
     registrationOpen?: boolean;
   }>({
     showEvaluationLogs: false,
+    showHistoryTab: false,
     showLeaderboard: false,
     registrationOpen: false,
   });
@@ -1119,17 +1121,19 @@ export default function DevOpsLabClient() {
                 >
                   Challenges
                 </Link>
-                <Link
-                  href="/history"
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: "0.9rem",
-                    fontWeight: 600,
-                    textDecoration: "none",
-                  }}
-                >
-                  History
-                </Link>
+                {features.showHistoryTab && (
+                  <Link
+                    href="/history"
+                    style={{
+                      color: "#94a3b8",
+                      fontSize: "0.9rem",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    History
+                  </Link>
+                )}
                 <Link
                   href="/leaderboard"
                   style={{
