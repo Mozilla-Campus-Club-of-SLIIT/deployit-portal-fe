@@ -2025,7 +2025,7 @@ export default function DevOpsLabClient() {
                   className="challenge-title"
                   onContextMenu={(e) => e.preventDefault()}
                   onCopy={(e) => e.preventDefault()}
-                  onSelectStart={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   <img
                     src="/file.svg"
@@ -2047,7 +2047,7 @@ export default function DevOpsLabClient() {
                   className="challenge-desc"
                   onContextMenu={(e) => e.preventDefault()}
                   onCopy={(e) => e.preventDefault()}
-                  onSelectStart={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   {!isProvisioning
                     ? activeChallengeDef?.description ||
