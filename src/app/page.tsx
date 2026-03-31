@@ -93,6 +93,15 @@ export default function DevOpsLabClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTerminal, setSelectedTerminal] = useState(0);
   const isProcessingRef = useRef(false);
+  const [features, setFeatures] = useState<{
+    showEvaluationLogs?: boolean;
+    showLeaderboard?: boolean;
+    registrationOpen?: boolean;
+  }>({
+    showEvaluationLogs: false,
+    showLeaderboard: false,
+    registrationOpen: false,
+  });
 
   // Reset to page 1 whenever filter changes
   const handleCategoryChange = (cat: string) => {
@@ -154,6 +163,22 @@ export default function DevOpsLabClient() {
     };
     fetchChallenges();
   }, [user]);
+
+  // Load features configuration from JSON
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const response = await fetch("/features.json");
+        if (response.ok) {
+          const data = await response.json();
+          setFeatures(data);
+        }
+      } catch (e) {
+        console.debug("Failed to load features configuration", e);
+      }
+    };
+    fetchFeatures();
+  }, []);
 
   // Keep-alive script
   useEffect(() => {
@@ -1475,37 +1500,40 @@ export default function DevOpsLabClient() {
                           : "Keep trying! Your changes didn't meet the requirements yet."}
                       </p>
 
-                      {challengeResult.output && (
-                        <div style={{ marginTop: "1.5rem", textAlign: "left" }}>
+                      {challengeResult.output &&
+                        features.showEvaluationLogs && (
                           <div
-                            style={{
-                              fontSize: "0.75rem",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                              color: "#64748b",
-                              marginBottom: "0.5rem",
-                              fontWeight: 700,
-                            }}
+                            style={{ marginTop: "1.5rem", textAlign: "left" }}
                           >
-                            Evaluation Logs
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                                color: "#64748b",
+                                marginBottom: "0.5rem",
+                                fontWeight: 700,
+                              }}
+                            >
+                              Evaluation Logs
+                            </div>
+                            <pre
+                              style={{
+                                background: "rgba(0,0,0,0.4)",
+                                padding: "1rem",
+                                borderRadius: "8px",
+                                fontSize: "0.85rem",
+                                color: "#cbd5e1",
+                                overflow: "auto",
+                                maxHeight: "200px",
+                                border: "1px solid rgba(255,255,255,0.05)",
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {challengeResult.output}
+                            </pre>
                           </div>
-                          <pre
-                            style={{
-                              background: "rgba(0,0,0,0.4)",
-                              padding: "1rem",
-                              borderRadius: "8px",
-                              fontSize: "0.85rem",
-                              color: "#cbd5e1",
-                              overflow: "auto",
-                              maxHeight: "200px",
-                              border: "1px solid rgba(255,255,255,0.05)",
-                              fontFamily: "monospace",
-                            }}
-                          >
-                            {challengeResult.output}
-                          </pre>
-                        </div>
-                      )}
+                        )}
 
                       <button
                         onClick={() =>
@@ -1993,7 +2021,12 @@ export default function DevOpsLabClient() {
                   </div>
                 </div>
 
-                <h3 className="challenge-title">
+                <h3
+                  className="challenge-title"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onCopy={(e) => e.preventDefault()}
+                  onSelectStart={(e) => e.preventDefault()}
+                >
                   <img
                     src="/file.svg"
                     alt="Challenge File Icon"
@@ -2010,7 +2043,12 @@ export default function DevOpsLabClient() {
                     ? activeChallengeDef?.title || "DevOps Challenge"
                     : "Environment Setup"}
                 </h3>
-                <p className="challenge-desc">
+                <p
+                  className="challenge-desc"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onCopy={(e) => e.preventDefault()}
+                  onSelectStart={(e) => e.preventDefault()}
+                >
                   {!isProvisioning
                     ? activeChallengeDef?.description ||
                       "A secret flag string is injected into the container. Find and extract it!"
