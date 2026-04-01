@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useAuth, authHeaders } from "@/context/AuthContext";
+import { useAuth, authHeaders, getToken } from "@/context/AuthContext";
 import { useLab } from "@/context/LabContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -185,15 +185,17 @@ export default function DevOpsLabClient() {
   // Keep-alive script
   useEffect(() => {
     let keepAliveInterval: NodeJS.Timeout;
-    if (sessionId && labUrl) {
+    if (sessionId && user?.uid) {
       keepAliveInterval = setInterval(() => {
-        fetch(labUrl, { mode: "no-cors" }).catch(() => {});
+        fetch(`${API_URL}/api/current-session?userId=${user.uid}`, {
+          headers: authHeaders(),
+        }).catch(() => {});
       }, 10000);
     }
     return () => {
       if (keepAliveInterval) clearInterval(keepAliveInterval);
     };
-  }, [sessionId, labUrl]);
+  }, [sessionId, user?.uid]);
 
   // Monitor terminal readiness - check if terminal is fully initialized
   useEffect(() => {
@@ -2164,7 +2166,7 @@ export default function DevOpsLabClient() {
               {labUrl && (
                 <>
                   <iframe
-                    src={`${labUrl}${labUrl.includes("?") ? "&" : "?"}terminal=${selectedTerminal}`}
+                    src={`${labUrl}${labUrl.includes("?") ? "&" : "?"}terminal=${selectedTerminal}${getToken() ? `&token=${encodeURIComponent(getToken() as string)}` : ""}`}
                     className="iframe-window"
                     title={`Lab Terminal ${selectedTerminal + 1}`}
                     allow="clipboard-read; clipboard-write"
