@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useAuth, authHeaders } from "@/context/AuthContext";
 import Link from "next/link";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = getApiBaseUrl();
 
 const TrophyIcon = ({ color }: { color: string }) => (
   <svg

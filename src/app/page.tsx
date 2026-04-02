@@ -6,8 +6,9 @@ import { useLab } from "@/context/LabContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProvisioningBanner from "@/components/ProvisioningBanner";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = getApiBaseUrl();
 
 export default function DevOpsLabClient() {
   const {
@@ -155,9 +156,6 @@ export default function DevOpsLabClient() {
         if (!response.ok) throw new Error("Networking issue");
         const data = await response.json();
         setChallenges(data || []);
-        if (data && data.length > 0 && !labType) {
-          setLabType(data[0].id);
-        }
       } catch (e) {
       } finally {
         setIsChallengesLoading(false);
@@ -442,7 +440,17 @@ export default function DevOpsLabClient() {
 
       setSessionId(data.sessionID);
       setLabUrl(data.url);
-      setTimer(data.timeLimit || 300); // Dynamic timer depending on challenge
+      const serverTimeLimit =
+        Number.isFinite(data.timeLimit) && Number(data.timeLimit) > 0
+          ? Number(data.timeLimit)
+          : 300;
+      const shouldPreserveLowerTimer =
+        sessionId === data.sessionID && timer > 0;
+      setTimer(
+        shouldPreserveLowerTimer
+          ? Math.min(timer, serverTimeLimit)
+          : serverTimeLimit,
+      ); // Keep countdown stable for existing sessions
       setIsWarmingUp(true);
       setIsProvisioning(true);
     } catch (error: any) {
@@ -1011,7 +1019,6 @@ export default function DevOpsLabClient() {
                         <div
                           style={{
                             display: "flex",
-                            justifyContent: "space-between",
                             alignItems: "center",
                           }}
                         >
@@ -1024,22 +1031,6 @@ export default function DevOpsLabClient() {
                           >
                             Password
                           </label>
-                          {isLoginMode && (
-                            <button
-                              type="button"
-                              onClick={() => setIsForgotPasswordMode(true)}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                color: "var(--primary)",
-                                cursor: "pointer",
-                                fontSize: "0.75rem",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Forgot Password?
-                            </button>
-                          )}
                         </div>
                         <input
                           type="password"

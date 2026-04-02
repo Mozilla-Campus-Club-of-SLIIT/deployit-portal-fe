@@ -9,8 +9,9 @@ import React, {
   useRef,
 } from "react";
 import { useAuth, authHeaders } from "@/context/AuthContext";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API_URL = getApiBaseUrl();
 
 interface LabStatus {
   type: "info" | "success" | "error" | null;
@@ -83,6 +84,11 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    currentSessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   const resetLabState = useCallback(() => {
     setSessionId(null);
@@ -116,10 +122,23 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
             return false;
           }
           const data = await res.json();
+          const recoveredTimer = Math.max(
+            0,
+            Number.isFinite(data.timeLimit) ? Number(data.timeLimit) : 0,
+          );
+          const isSameSession =
+            currentSessionIdRef.current !== null &&
+            currentSessionIdRef.current === data.sessionID;
+
           setSessionId(data.sessionID);
           setLabUrl(data.url);
           setLabType(data.challengeID);
-          setTimer(data.timeLimit);
+          setTimer((prevTimer) => {
+            if (isSameSession && prevTimer > 0) {
+              return Math.min(prevTimer, recoveredTimer);
+            }
+            return recoveredTimer;
+          });
           setStatus({
             type: "success",
             message: "Successfully connected to your lab session!",
@@ -167,7 +186,13 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
     if (sessionId && labUrl) {
       localStorage.setItem(
         "active_lab_session",
-        JSON.stringify({ sessionId, labUrl, labType, timer }),
+        JSON.stringify({
+          sessionId,
+          labUrl,
+          labType,
+          timer,
+          timerSavedAt: Date.now(),
+        }),
       );
     }
   }, [sessionId, labUrl, labType, timer]);
@@ -183,12 +208,21 @@ export const LabProvider = ({ children }: { children: React.ReactNode }) => {
             labUrl: url,
             labType: lt,
             timer: t,
+            timerSavedAt,
           } = JSON.parse(savedSession);
           if (sid && url) {
+            const elapsedSeconds = timerSavedAt
+              ? Math.max(
+                  0,
+                  Math.floor((Date.now() - Number(timerSavedAt)) / 1000),
+                )
+              : 0;
+            const restoredTimer = Math.max(0, Number(t || 0) - elapsedSeconds);
+
             setSessionId(sid);
             setLabUrl(url);
             setLabType(lt || "");
-            setTimer(t || 0);
+            setTimer(restoredTimer);
           }
         } catch {}
       }
