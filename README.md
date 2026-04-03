@@ -16,6 +16,6 @@ pnpm install
 pnpm dev
 ```
 
-The web UI will be accessible at:
+The web UI will be accessible at:-
 `http://localhost:3000`
 
