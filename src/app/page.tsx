@@ -149,6 +149,20 @@ export default function DevOpsLabClient() {
     return filteredChallenges.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredChallenges, currentPage, ITEMS_PER_PAGE]);
 
+  const normalizeChallengeId = (value: unknown): string =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  const attemptedChallengeIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const attempt of attempts || []) {
+      const id = normalizeChallengeId(attempt?.challengeId);
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [attempts]);
+
   useEffect(() => {
     const fetchChallenges = async () => {
       try {
@@ -349,6 +363,25 @@ export default function DevOpsLabClient() {
   const startLab = async (challengeId?: string | any) => {
     const activeLabTypeId =
       typeof challengeId === "string" ? challengeId : labType;
+    const normalizedActiveChallengeId = normalizeChallengeId(activeLabTypeId);
+    const normalizedRunningChallengeId = normalizeChallengeId(labType);
+    const isResumingCurrentSession =
+      Boolean(sessionId) &&
+      normalizedActiveChallengeId !== "" &&
+      normalizedActiveChallengeId === normalizedRunningChallengeId;
+
+    if (
+      normalizedActiveChallengeId !== "" &&
+      attemptedChallengeIds.has(normalizedActiveChallengeId) &&
+      !isResumingCurrentSession
+    ) {
+      setStatus({
+        type: "error",
+        message:
+          "You can only start each challenge once. This challenge has already been attempted.",
+      });
+      return;
+    }
 
     // Prevent multiple concurrent operations
     if (
@@ -1632,6 +1665,14 @@ export default function DevOpsLabClient() {
                         </p>
                       ) : (
                         pagedChallenges.map((c) => (
+                          (() => {
+                            const normalizedChallengeId = normalizeChallengeId(
+                              c.id,
+                            );
+                            const hasAttemptedChallenge =
+                              attemptedChallengeIds.has(normalizedChallengeId);
+
+                            return (
                           <div
                             key={c.id}
                             className="glass-panel challenge-card-panel"
@@ -1751,6 +1792,20 @@ export default function DevOpsLabClient() {
                                     {t}
                                   </span>
                                 ))}
+                                {hasAttemptedChallenge && (
+                                  <span
+                                    style={{
+                                      fontSize: "0.7rem",
+                                      background: "rgba(239, 68, 68, 0.15)",
+                                      padding: "0.2rem 0.5rem",
+                                      borderRadius: "4px",
+                                      color: "#fca5a5",
+                                      border: "1px solid rgba(239, 68, 68, 0.35)",
+                                    }}
+                                  >
+                                    Attempted
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div>
@@ -1792,7 +1847,8 @@ export default function DevOpsLabClient() {
                                     isLoading ||
                                     isProvisioning ||
                                     isEvaluating ||
-                                    sessionId !== null
+                                    sessionId !== null ||
+                                    hasAttemptedChallenge
                                   }
                                   className="button-primary"
                                   style={{
@@ -1801,26 +1857,32 @@ export default function DevOpsLabClient() {
                                       isLoading ||
                                       isProvisioning ||
                                       isEvaluating ||
-                                      sessionId !== null
+                                      sessionId !== null ||
+                                      hasAttemptedChallenge
                                         ? 0.5
                                         : 1,
                                     cursor:
                                       isLoading ||
                                       isProvisioning ||
                                       isEvaluating ||
-                                      sessionId !== null
+                                      sessionId !== null ||
+                                      hasAttemptedChallenge
                                         ? "not-allowed"
                                         : "pointer",
                                   }}
                                 >
-                                  {(isLoading || isProvisioning) &&
-                                  labType === c.id
+                                  {hasAttemptedChallenge
+                                    ? "Already Attempted"
+                                    : (isLoading || isProvisioning) &&
+                                        labType === c.id
                                     ? "Preparing..."
                                     : "Start Challenge"}
                                 </button>
                               )}
                             </div>
                           </div>
+                            );
+                          })()
                         ))
                       )}
                     </div>
